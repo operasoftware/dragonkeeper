@@ -1,5 +1,6 @@
 from common import *
 
+from mimetypes import types_map
 
 class Connection(asyncore.dispatcher):
     """To handle a http request in the context of providing
@@ -38,7 +39,7 @@ class Connection(asyncore.dispatcher):
         self.debug = context.debug
         self.debug_format = context.format
 
-    def sendScopeEvent(self, msg, sender):
+    def sendScopeEventSTP0(self, msg, sender):
         """ return a message to the client"""
         service, payload = msg
         if self.debug:
@@ -46,12 +47,54 @@ class Connection(asyncore.dispatcher):
                 print "\nsend to client:", service, formatXML(payload)
             else:
                 print "send to client:", service, payload
-        self.out_buffer += SCOPE_MESSAGE % (
+        self.out_buffer += SCOPE_MESSAGE_STP_0 % (
             getTimestamp(), 
             service, 
             len(payload), 
             payload
         )
+        self.timeout = 0
+        if not sender == self:
+            self.handle_write()
+
+    def sendScopeEventSTP1(self, msg, sender):
+        """ return a message to the client"""
+        service, command, status, type, cid, tag, data = msg
+        if not data: data = ' '
+        if self.debug:
+            if self.debug_format:
+                print ( "service: %s\n" 
+                    "command: %s\n"
+                    "status: %s\n"
+                    "type: %s\n"
+                    "cid: %s\n"
+                    "tag: %s\n"
+                    "data: %s" ) % tuple(msg)
+                # print "\nsend to client:", tuple(msg)
+            else:
+                print "send to client:", service, command, status, type, cid, tag, data
+        #if data:
+        self.out_buffer += SCOPE_MESSAGE_STP_1 % (
+            getTimestamp(), 
+            service, 
+            command,
+            status,
+            tag,
+            len(data), 
+            data
+            )
+        """
+        status 204 does not really work
+        else:
+            self.out_buffer += SCOPE_MESSAGE_STP_1_EMPTY % (
+                getTimestamp(), 
+                service, 
+                command,
+                status,
+                tag
+                )
+        """
+        print "outbuffer", self.out_buffer
         self.timeout = 0
         if not sender == self:
             self.handle_write()
@@ -100,10 +143,15 @@ class Connection(asyncore.dispatcher):
                     self.timeout = 0
                 elif command == "enable":
                     if scope.services_enabled[path]:
+                        if path.startswith('stp-'):
+                            scope.pushbackHelloMessage()
                         print ">>> service is already enabled", path
                     else:
+
                         scope.sendCommand("*enable %s" % path)
                         scope.services_enabled[path] = True
+                        if path.startswith('stp-'):
+                            scope.setSTPVersion(path)
                         while scope.commands_waiting[path]:
                             scope.sendCommand(
                                     scope.commands_waiting[path].pop(0))
@@ -111,13 +159,16 @@ class Connection(asyncore.dispatcher):
                     self.timeout = 0
                 elif command == "scope-message":
                     if scope_messages:
-                        self.sendScopeEvent(scope_messages.pop(0), self)
+                        if scope.version == 'stp-1':
+                            self.sendScopeEventSTP1(scope_messages.pop(0), self)
+                        else:
+                            self.sendScopeEventSTP0(scope_messages.pop(0), self)
                     else:
                         connections_waiting.append(self)                    
                 elif command == "favicon.ico":
                     self.serve(path_join(sys.path[0], "favicon.ico"))
                 elif not command:
-                    self.out_buffer +=  REDIRECT % ( getTimestamp(), "file/" )
+                    self.out_buffer +=  REDIRECT % ( getTimestamp(), "/file/" )
                     self.timeout = 0
                 if self.in_buffer:
                     self.check_input()
@@ -129,13 +180,19 @@ class Connection(asyncore.dispatcher):
     def read_content(self):
         if len(self.in_buffer) >= self.content_length:
             raw_data = self.in_buffer[0:self.content_length] 
-            if not raw_data.startswith("<?xml"):
-                raw_data = XML_PRELUDE % raw_data  
-            msg = "%s %s" % (self.command, raw_data.decode('UTF-8'))
-            if scope.services_enabled[self.command]:
-                scope.sendCommand(msg)
+            if scope.version == "stp-1":
+                args = map(int, self.path.split('/'))
+                args.append(raw_data)
+                # print "raw_data:", args
+                scope.sendCommand(args)
             else:
-                scope.commands_waiting[self.command].append(msg)
+                if not raw_data.startswith("<?xml"):
+                    raw_data = XML_PRELUDE % raw_data  
+                msg = "%s %s" % (self.command, raw_data.decode('UTF-8'))
+                if scope.services_enabled[self.command]:
+                    scope.sendCommand(msg)
+                else:
+                    scope.commands_waiting[self.command].append(msg)
             self.out_buffer += RESPONSE_OK_OK % getTimestamp()
             self.timeout = 0
             self.in_buffer = self.in_buffer[self.content_length:]
@@ -144,7 +201,7 @@ class Connection(asyncore.dispatcher):
                 self.check_input()
 
     def serve(self, path):
-        system_path = webURIToSystemPath(path.rstrip("/")) or ""
+        system_path = webURIToSystemPath(path.rstrip("/")) or "."
         if path_exists(system_path) or path == "":
             if isfile(system_path):
                 if "If-Modified-Since" in self.headers and \
@@ -155,7 +212,7 @@ class Connection(asyncore.dispatcher):
                 else:
                     ending = "." in path and path[path.rfind("."):] or \
                                 "no-ending"
-                    mime = ending in MIME and MIME[ending] or 'text/plain'
+                    mime = ending in types_map and types_map[ending] or 'text/plain'
                     try:
                         f = open(system_path, 'rb')
                         content = f.read()
