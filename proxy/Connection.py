@@ -1,6 +1,13 @@
-from common import *
-
+import asyncore
+import sys
+from asyncore import poll
+from time import time
+from os import stat, listdir
+from os.path import isfile, isdir
+from os.path import exists as path_exists
+from os.path import join as path_join
 from mimetypes import types_map
+from common import *
 
 class Connection(asyncore.dispatcher):
     """To handle a http request in the context of providing
@@ -39,6 +46,140 @@ class Connection(asyncore.dispatcher):
         self.debug = context.debug
         self.debug_format = context.format
 
+    # ============================================================
+    # Parse HTTP Request
+    # ============================================================
+
+    def read_headers(self):
+        if 2*CRLF in self.in_buffer:
+            headers_raw, self.in_buffer = self.in_buffer.split(2*CRLF, 1)
+            first_line, headers_raw = headers_raw.split(CRLF, 1)
+            method, path, protocol = first_line.split(BLANK, 2)
+            path = path.lstrip("/")
+            if "?" in path:
+                path, self.query = path.split('?', 1)
+            self.headers = dict(( RE_HEADER.split(line, 1) 
+                                    for line in headers_raw.split(CRLF) ))
+            try: 
+                command, path = path.split("/", 1)
+            except ValueError: 
+                command, path = path, ""
+            command = command.replace('-', '_').replace('.', '_')
+            self.method = method
+            self.path = path
+            self.command = command
+            self.timeout = time() + TIMEOUT
+            # POST
+            if method == "POST":
+                if "Content-Length" in self.headers:
+                    self.content_length = int(self.headers["Content-Length"])
+                    self.check_input = self.read_content
+                    self.check_input()                
+            # GET
+            elif method == "GET":
+                self.content_length = 0
+                if not command:
+                    self.out_buffer +=  REDIRECT % ( getTimestamp(), "/file/" )
+                    self.timeout = 0
+                elif hasattr(self, command):
+                    getattr(self, command)(command, path)
+                else:
+                    raise Exception("not supported command")
+                if self.in_buffer:
+                    self.check_input()
+            # Not implemented method
+            else:
+                self.out_buffer += NOT_FOUND % getTimestamp()
+                self.timeout = 0
+
+    def read_content(self):
+        if len(self.in_buffer) >= self.content_length:
+            raw_data = self.in_buffer[0:self.content_length] 
+            self.send_command(raw_data)
+            self.out_buffer += RESPONSE_OK_OK % getTimestamp()
+            self.timeout = 0
+            self.in_buffer = self.in_buffer[self.content_length:]
+            self.check_input = self.read_headers
+            if self.in_buffer:
+                self.check_input()
+
+    # ============================================================
+    # Special GET commands ( first part of the path )
+    # ============================================================
+
+    def file(self, command, path):
+        """to get a resource"""
+        self.serve(path)
+
+    def services(self, command, path):
+        """to get the service list"""
+        if connections_waiting:
+            print ">>> failed, connections_waiting is not empty"
+        content = SERVICE_LIST % "".join (
+            [SERVICE_ITEM % service.encode('utf-8') 
+            for service in scope.serviceList] 
+            )
+        self.out_buffer += RESPONSE_SERVICELIST % ( 
+            getTimestamp(), 
+            len(content), 
+            content
+            )
+        self.timeout = 0
+
+    def enable(self, command, path):
+        """to enable a scope service"""
+        if scope.services_enabled[path]:
+            if path.startswith('stp-'):
+                scope.pushbackHelloMessage()
+            print ">>> service is already enabled", path
+        else:
+            scope.sendCommand("*enable %s" % path)
+            scope.services_enabled[path] = True
+            if path.startswith('stp-'):
+                scope.setSTPVersion(path)
+            while scope.commands_waiting[path]:
+                scope.sendCommand(scope.commands_waiting[path].pop(0))
+        self.out_buffer += RESPONSE_OK_OK % getTimestamp()
+        self.timeout = 0
+
+    def scope_message(self, command, path):
+        """general call to get the next scope message"""
+        if scope_messages:
+            if scope.version == 'stp-1':
+                self.sendScopeEventSTP1(scope_messages.pop(0), self)
+            else:
+                self.sendScopeEventSTP0(scope_messages.pop(0), self)
+        else:
+            connections_waiting.append(self)
+        self.timeout = 0
+
+    def favicon_ico(self, command, path):
+        """Opera likes to get always a favicon"""
+        self.serve(path_join(sys.path[0], "favicon.ico"))
+
+    # ============================================================
+    # Special POST commands 
+    # ============================================================
+
+    def send_command(self, raw_data):
+        """send a command to scope"""
+        if scope.version == "stp-1":
+            args = map(int, self.path.split('/'))
+            args.append(raw_data)
+            scope.sendCommand(args)
+        else:
+            if not raw_data.startswith("<?xml"):
+                raw_data = XML_PRELUDE % raw_data  
+            msg = "%s %s" % (self.command, raw_data.decode('UTF-8'))
+            if scope.services_enabled[self.command]:
+                scope.sendCommand(msg)
+            else:
+                scope.commands_waiting[self.command].append(msg)
+            
+    # ============================================================
+    # STP 0
+    # ============================================================
+
     def sendScopeEventSTP0(self, msg, sender):
         """ return a message to the client"""
         service, payload = msg
@@ -57,23 +198,21 @@ class Connection(asyncore.dispatcher):
         if not sender == self:
             self.handle_write()
 
+    # ============================================================
+    # STP 1
+    # ============================================================
+
     def sendScopeEventSTP1(self, msg, sender):
         """ return a message to the client"""
         service, command, status, type, cid, tag, data = msg
-        if not data: data = ' '
+        if not data: 
+            # workaround, status 204 does not work well
+            data = ' '  
         if self.debug:
             if self.debug_format:
-                print ( "service: %s\n" 
-                    "command: %s\n"
-                    "status: %s\n"
-                    "type: %s\n"
-                    "cid: %s\n"
-                    "tag: %s\n"
-                    "data: %s" ) % tuple(msg)
-                # print "\nsend to client:", tuple(msg)
+                print "\nsend to client:", prettyPrint(msg)
             else:
-                print "send to client:", service, command, status, type, cid, tag, data
-        #if data:
+                print "send to client:", msg
         self.out_buffer += SCOPE_MESSAGE_STP_1 % (
             getTimestamp(), 
             service, 
@@ -83,189 +222,87 @@ class Connection(asyncore.dispatcher):
             len(data), 
             data
             )
-        """
-        status 204 does not really work
-        else:
-            self.out_buffer += SCOPE_MESSAGE_STP_1_EMPTY % (
-                getTimestamp(), 
-                service, 
-                command,
-                status,
-                tag
-                )
-        """
-        print "outbuffer", self.out_buffer
         self.timeout = 0
         if not sender == self:
             self.handle_write()
 
-    def read_headers(self):
-        if 2*CRLF in self.in_buffer:
-            headers_raw, self.in_buffer = self.in_buffer.split(2*CRLF, 1)
-            first_line, headers_raw = headers_raw.split(CRLF, 1)
-            method, path, protocol = first_line.split(BLANK, 2)
-            path = path.lstrip("/")
-            if "?" in path:
-                path, self.query = path.split('?', 1)
-            self.headers = dict(( RE_HEADER.split(line, 1) 
-                                    for line in headers_raw.split(CRLF) ))
-            try: 
-                command, path = path.split("/", 1)
-            except ValueError: 
-                command, path = path, ""
-            self.method = method
-            self.path = path
-            self.command = command
-            self.timeout = time() + TIMEOUT
-            # POST
-            if method == "POST":
-                if "Content-Length" in self.headers:
-                    self.content_length = int(self.headers["Content-Length"])
-                    self.check_input = self.read_content
-                    self.check_input()                
-            # GET
-            elif method == "GET":
-                self.content_length = 0
-                if command == "file":
-                    self.serve(path)
-                elif command == "services":
-                    if connections_waiting:
-                        print ">>> failed, connections_waiting is not empty"
-                    content = SERVICE_LIST % "".join (
-                        [SERVICE_ITEM % service.encode('utf-8') 
-                                for service in scope.serviceList] 
-                    )
-                    self.out_buffer += RESPONSE_SERVICELIST % ( 
-                        getTimestamp(), 
-                        len(content), 
-                        content
-                    )
-                    self.timeout = 0
-                elif command == "enable":
-                    if scope.services_enabled[path]:
-                        if path.startswith('stp-'):
-                            scope.pushbackHelloMessage()
-                        print ">>> service is already enabled", path
-                    else:
-
-                        scope.sendCommand("*enable %s" % path)
-                        scope.services_enabled[path] = True
-                        if path.startswith('stp-'):
-                            scope.setSTPVersion(path)
-                        while scope.commands_waiting[path]:
-                            scope.sendCommand(
-                                    scope.commands_waiting[path].pop(0))
-                    self.out_buffer += RESPONSE_OK_OK % getTimestamp()
-                    self.timeout = 0
-                elif command == "scope-message":
-                    if scope_messages:
-                        if scope.version == 'stp-1':
-                            self.sendScopeEventSTP1(scope_messages.pop(0), self)
-                        else:
-                            self.sendScopeEventSTP0(scope_messages.pop(0), self)
-                    else:
-                        connections_waiting.append(self)                    
-                elif command == "favicon.ico":
-                    self.serve(path_join(sys.path[0], "favicon.ico"))
-                elif not command:
-                    self.out_buffer +=  REDIRECT % ( getTimestamp(), "/file/" )
-                    self.timeout = 0
-                if self.in_buffer:
-                    self.check_input()
-            # Not implemented method
-            else:
-                self.out_buffer += NOT_FOUND % getTimestamp()
-                self.timeout = 0
-
-    def read_content(self):
-        if len(self.in_buffer) >= self.content_length:
-            raw_data = self.in_buffer[0:self.content_length] 
-            if scope.version == "stp-1":
-                args = map(int, self.path.split('/'))
-                args.append(raw_data)
-                # print "raw_data:", args
-                scope.sendCommand(args)
-            else:
-                if not raw_data.startswith("<?xml"):
-                    raw_data = XML_PRELUDE % raw_data  
-                msg = "%s %s" % (self.command, raw_data.decode('UTF-8'))
-                if scope.services_enabled[self.command]:
-                    scope.sendCommand(msg)
-                else:
-                    scope.commands_waiting[self.command].append(msg)
-            self.out_buffer += RESPONSE_OK_OK % getTimestamp()
-            self.timeout = 0
-            self.in_buffer = self.in_buffer[self.content_length:]
-            self.check_input = self.read_headers
-            if self.in_buffer:
-                self.check_input()
+    # ============================================================
+    # HTTP 
+    # ============================================================
 
     def serve(self, path):
         system_path = webURIToSystemPath(path.rstrip("/")) or "."
         if path_exists(system_path) or path == "":
             if isfile(system_path):
-                if "If-Modified-Since" in self.headers and \
-                   timestampToTime(self.headers["If-Modified-Since"]) >= \
-                   int(stat(system_path).st_mtime):
-                    self.out_buffer += NOT_MODIFIED % getTimestamp()
-                    self.timeout = 0
-                else:
-                    ending = "." in path and path[path.rfind("."):] or \
-                                "no-ending"
-                    mime = ending in types_map and types_map[ending] or 'text/plain'
-                    try:
-                        f = open(system_path, 'rb')
-                        content = f.read()
-                        f.close()            
-                        self.out_buffer += RESPONSE_OK_CONTENT % (
-                            getTimestamp(),
-                            'Last-Modified: %s%s' %  (
-                                getTimestamp(system_path), 
-                                CRLF
-                            ),
-                            mime, 
-                            len(content), 
-                            content
-                        )
-                        self.timeout = 0         
-                    except:
-                        self.out_buffer += NOT_FOUND % getTimestamp()
-                        self.timeout = 0
+                self.serveFile(path, system_path)
             elif isdir(system_path) or path == "":
-                if path and not path.endswith('/'):
-                    self.out_buffer +=  REDIRECT % ( 
-                                            getTimestamp(), path + '/' )
-                    self.timeout = 0
-                else:
-                    try:
-                        items_dir = [item for item in listdir(system_path) 
-                                        if isdir(path_join(system_path, item))]
-                        items_file = [item for item in listdir(system_path) 
-                                        if isfile(path_join(system_path, item))]
-                        items_dir.sort()
-                        items_file.sort()
-                        if path:
-                            items_dir.insert(0, '..')
-                        markup = [ITEM_DIR % (encodeURI(item), item) 
-                                        for item in items_dir]
-                        markup.extend([ITEM_FILE % (encodeURI(item), item) 
-                                            for item in items_file])
-                        content = DIR_VIEW % ( "".join(markup) )
-                    except:
-                        content = DIR_VIEW % "<li><h1>no access</h1></li>"
-                    self.out_buffer += RESPONSE_OK_CONTENT % ( 
-                        getTimestamp(), 
-                        '', 
-                        "text/html", 
-                        len(content), 
-                        content
-                    )
-                    self.timeout = 0
+                self.serveDir(path, system_path)
         else:
             self.out_buffer += NOT_FOUND % getTimestamp()
             self.timeout = 0
 
-    # Implementations of the asyncore.dispatcher class methods
+    def serveFile(self, path, system_path):
+        if "If-Modified-Since" in self.headers and \
+           timestampToTime(self.headers["If-Modified-Since"]) >= \
+           int(stat(system_path).st_mtime):
+            self.out_buffer += NOT_MODIFIED % getTimestamp()
+            self.timeout = 0
+        else:
+            ending = "." in path and path[path.rfind("."):] or "no-ending"
+            mime = ending in types_map and types_map[ending] or 'text/plain'
+            try:
+                f = open(system_path, 'rb')
+                content = f.read()
+                f.close()            
+                self.out_buffer += RESPONSE_OK_CONTENT % (
+                    getTimestamp(),
+                    'Last-Modified: %s%s' %  (
+                        getTimestamp(system_path), 
+                        CRLF
+                        ),
+                    mime, 
+                    len(content), 
+                    content
+                    )
+                self.timeout = 0         
+            except:
+                self.out_buffer += NOT_FOUND % getTimestamp()
+                self.timeout = 0
+
+    def serveDir(self, path, system_path):
+        if path and not path.endswith('/'):
+            self.out_buffer +=  REDIRECT % (getTimestamp(), path + '/')
+            self.timeout = 0
+        else:
+            try:
+                items_dir = [item for item in listdir(system_path) 
+                                if isdir(path_join(system_path, item))]
+                items_file = [item for item in listdir(system_path) 
+                                if isfile(path_join(system_path, item))]
+                items_dir.sort()
+                items_file.sort()
+                if path:
+                    items_dir.insert(0, '..')
+                markup = [ITEM_DIR % (encodeURI(item), item) 
+                            for item in items_dir]
+                markup.extend([ITEM_FILE % (encodeURI(item), item) 
+                                    for item in items_file])
+                content = DIR_VIEW % ( "".join(markup) )
+            except:
+                content = DIR_VIEW % "<li><h1>no access</h1></li>"
+            self.out_buffer += RESPONSE_OK_CONTENT % ( 
+                getTimestamp(), 
+                '', 
+                "text/html", 
+                len(content), 
+                content
+            )
+            self.timeout = 0
+
+    # ============================================================
+    # Implementations of the asyncore.dispatcher class methods 
+    # ============================================================
+
     def handle_read(self):
         try:
             self.in_buffer += self.recv(BUFFERSIZE)

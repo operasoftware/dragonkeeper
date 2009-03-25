@@ -288,6 +288,83 @@ TIMEOUT = 30
 connections_waiting = []
 scope_messages = []
 
+commandMap = {
+    "scope": {
+        0: "OnServices",
+        1: "OnConnect",
+        2: "OnQuit",
+        3: "OnConnectionLost",
+        5: "Enable",
+        6: "Disable",
+        7: "Configure",
+        8: "Info",
+        9: "Quit"
+        },
+    "window-manager": {
+        1: "GetActiveWindow", 
+        3: "ListWindows",
+        5: "ModifyFilter",
+        0: "OnWindowUpdated",
+        2: "OnWindowClosed",
+        4: "OnWindowActivated"
+        },
+    "console-logger": {
+        0: "ConsoleMessage"
+        },
+    "ecmascript-debugger": {
+        1: "ListRuntimes",
+        2: "ContinueThread",
+        3: "Eval",
+        4: "ExamineObjects",
+        5: "SpotlightObjects",
+        6: "AddBreakpoint",
+        7: "RemoveBreakpoint",
+        8: "AddEventHandler",
+        9: "RemoveEventHandler",
+        10: "SetConfiguration",
+        11: "GetBacktrace",
+        12: "Break",
+        13: "InspectDom",
+        14: "OnRuntimeStarted",
+        15: "OnRuntimeStopped",
+        16: "OnNewScript",
+        17: "OnThreadStarted",
+        18: "OnThreadFinished",
+        19: "OnThreadStoppedAt",
+        20: "OnHandleEvent",
+        21: "OnObjectSelected",
+        22: "CssGetIndexMap",
+        23: "CssGetAllStylesheets",
+        24: "CssGetStylesheet",
+        25: "CssGetStyleDeclarations",
+        26: "GetSelectedObject"
+        },
+    "http-logger": {
+        0: "OnRequest",
+        2: "OnResponse"
+        }
+    }
+
+statusMap = {
+    0: "OK",
+    1: "Conflict",
+    2: "Unsupported Type",
+    3: "Bad Request",
+    4: "Internal Error",
+    5: "Command Not Found",
+    6: "Service Not Found",
+    7: "Out Of Memory",
+    8: "Service Not Enabled",
+    9: "Service Already Enabled",
+    }
+
+typeMap = {
+    0: "protocol-buffer",
+    1: "json",
+    2: "xml",
+    3: "scope"
+    }
+
 
 class Scope(object):
     """Used as a namespace for scope with methods to register 
@@ -321,6 +398,27 @@ class Scope(object):
 
     def storeHelloMessage(self, msg):
         self.hello_msg = msg
+        """
+        services: scope=1.0.0,0,1;console-logger=1.0.0,0,1;...;
+        """
+        self.serviceMap = {}
+        self.serviceIndexMap = {}
+        data = msg[6]
+        services_raw = data[data.rfind('services:') + len('services:'):]
+        for index, service_raw in enumerate(services_raw.strip().split(';')):
+            if service_raw:
+                service, values = service_raw.split('=')                
+                version, active, max_active = values.split(',')
+                self.serviceIndexMap[index] = self.serviceMap[service] = {
+                    'name': service,
+                    'version': version,
+                    'active': active,
+                    'max-active': max_active,
+                    'index': index
+                    }
+        # print self.serviceIndexMap
+
+            
 
     def pushbackHelloMessage(self):
         if scope_messages:
@@ -351,7 +449,7 @@ def decodeURI(str):
     return re.sub(r"%([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), str)
 
 def webURIToSystemPath(path):
-    return os.path.join(*[decodeURI(part) for part in path.split('/')])
+    return path_join(*[decodeURI(part) for part in path.split('/')])
 
 def systemPathToWebUri(path):
     return "/".join([encodeURI(part) for part in path.split(os.path.sep)])
@@ -405,6 +503,28 @@ def formatXML(in_string):
     except:
         pass
     return "".join(ret)
+
+def prettyPrint(stp_1_msg):
+    # TODO? pretty print data
+    service, command, status, type, cid, tag, data = stp_1_msg 
+    service_name = scope.serviceIndexMap[service]['name']
+    return ( 
+        "  service: %s\n" 
+        "  command: %s\n"
+        "  status: %s\n"
+        "  type: %s\n"
+        "  cid: %s\n"
+        "  tag: %s\n"
+        "  data: %s" 
+        ) % (
+        service_name, 
+        commandMap[service_name][command], 
+        statusMap[status], 
+        typeMap[type], 
+        cid, 
+        tag, 
+        data
+        )
 
 class Options(object):
     #todo: subclass dict
