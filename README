@@ -2,7 +2,7 @@ Usage: proxy.py [options]
 
 Exit: Control-C
 
-Settings:  an optional file CONFIG does overwrite the defaults
+Settings:  an optional file dragonkeeper.ini does overwrite the defaults
    host:
    root: .
    server_port: 8002
