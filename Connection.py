@@ -65,6 +65,8 @@ class Connection(asyncore.dispatcher):
             except ValueError: 
                 command, path = path, ""
             command = command.replace('-', '_').replace('.', '_')
+            if not command:
+                command = "redirect_file"
             self.method = method
             self.path = path
             self.command = command
@@ -77,11 +79,7 @@ class Connection(asyncore.dispatcher):
                     self.check_input()                
             # GET
             elif method == "GET":
-                self.content_length = 0
-                if not command:
-                    self.out_buffer +=  REDIRECT % ( getTimestamp(), "/file/" )
-                    self.timeout = 0
-                elif hasattr(self, command):
+                if hasattr(self, command):
                     getattr(self, command)(command, path)
                 else:
                     raise Exception("not supported command")
@@ -99,6 +97,7 @@ class Connection(asyncore.dispatcher):
             self.out_buffer += RESPONSE_OK_OK % getTimestamp()
             self.timeout = 0
             self.in_buffer = self.in_buffer[self.content_length:]
+            self.content_length = 0
             self.check_input = self.read_headers
             if self.in_buffer:
                 self.check_input()
@@ -110,6 +109,11 @@ class Connection(asyncore.dispatcher):
     def file(self, command, path):
         """to get a resource"""
         self.serve(path)
+
+    def redirect_file(self, command, path):
+        """to redirect the empty path to /file/"""
+        self.out_buffer +=  REDIRECT % ( getTimestamp(), "/file/" )
+        self.timeout = 0
 
     def services(self, command, path):
         """to get the service list"""
