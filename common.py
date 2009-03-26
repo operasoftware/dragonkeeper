@@ -382,7 +382,6 @@ class Scope(object):
         pass
     
     def setConnection(self, connection):
-        print 'set connection'
         self.connection = connection
         self.sendCommand = connection.send_command_STP_0
 
