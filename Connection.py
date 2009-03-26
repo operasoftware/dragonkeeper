@@ -1,6 +1,5 @@
 import asyncore
 import sys
-from asyncore import poll
 from time import time
 from os import stat, listdir
 from os.path import isfile, isdir
@@ -287,13 +286,13 @@ class Connection(asyncore.dispatcher):
                 items_file.sort()
                 if path:
                     items_dir.insert(0, '..')
-                markup = [ITEM_DIR % (encodeURI(item), item) 
+                markup = [ITEM_DIR % (quote(item), item) 
                             for item in items_dir]
-                markup.extend([ITEM_FILE % (encodeURI(item), item) 
+                markup.extend([ITEM_FILE % (quote(item), item) 
                                     for item in items_file])
                 content = DIR_VIEW % ( "".join(markup) )
-            except:
-                content = DIR_VIEW % "<li><h1>no access</h1></li>"
+            except Exception, msg:
+                content = DIR_VIEW % """<li style="color:#f30">%s</li>""" % msg
             self.out_buffer += RESPONSE_OK_CONTENT % ( 
                 getTimestamp(), 
                 '', 
@@ -308,11 +307,8 @@ class Connection(asyncore.dispatcher):
     # ============================================================
 
     def handle_read(self):
-        try:
-            self.in_buffer += self.recv(BUFFERSIZE)
-            self.check_input()
-        except Exception, msg:
-            print ">>> handle_read in Connection failed: ", msg, self.in_buffer
+        self.in_buffer += self.recv(BUFFERSIZE)
+        self.check_input()
     
     def writable(self):
         if self.timeout and time() > self.timeout and not self.out_buffer:
@@ -327,11 +323,8 @@ class Connection(asyncore.dispatcher):
         return (len(self.out_buffer) > 0)
         
     def handle_write(self):
-        try:
-            sent = self.send(self.out_buffer)
-            self.out_buffer = self.out_buffer[sent:]
-        except Exception, msg:
-            print ">>> handle_write failed: ", msg
+        sent = self.send(self.out_buffer)
+        self.out_buffer = self.out_buffer[sent:]
 
     def handle_close(self):
         if self in connections_waiting:

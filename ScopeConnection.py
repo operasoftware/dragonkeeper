@@ -3,8 +3,6 @@ import asyncore
 import codecs
 from common import *
 
-
-
 class ScopeConnection(asyncore.dispatcher):
     """To handle the socket connection to scope."""
 

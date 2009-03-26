@@ -34,13 +34,14 @@ import string
 import sys
 import time
 import codecs
-from asyncore import poll
 from time import gmtime, strftime, mktime, strptime, time
 from calendar import timegm
 from os import stat, listdir
 from os.path import isfile, isdir
 from os.path import exists as path_exists
 from os.path import join as path_join
+from os.path import sep as OS_PATH_SEP
+from urllib import quote, unquote
 
 CRLF = '\r\n'
 BLANK = ' '
@@ -432,27 +433,11 @@ class Scope(object):
  
 scope = Scope()
 
-UNRESERVED = frozenset([c for s in \
-    [
-        string.uppercase,
-        string.lowercase,
-        string.digits,
-        ['-', '_', '.', '!', '~', '*', '\'', '(', ')', ';', 
-            '/', '?', ':', '@', '&', '=', '+', '$', ',' '#']
-    ] for c in s])
-
-def encodeURI(str):
-    return "".join([c in UNRESERVED and c or "%s%x" % ( 
-            "%", ord(c)) for c in str])
-    
-def decodeURI(str):
-    return re.sub(r"%([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), str)
-
 def webURIToSystemPath(path):
-    return path_join(*[decodeURI(part) for part in path.split('/')])
+    return path_join(*[unquote(part) for part in path.split('/')])
 
 def systemPathToWebUri(path):
-    return "/".join([encodeURI(part) for part in path.split(os.path.sep)])
+    return "/".join([quote(part) for part in path.split(OS_PATH_SEP)])
 
 def getTimestamp(path = None):
     return strftime("%a, %d %b %Y %H:%M:%S GMT", 

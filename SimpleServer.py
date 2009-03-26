@@ -1,3 +1,5 @@
+import socket
+import asyncore
 from common import *
 
 
