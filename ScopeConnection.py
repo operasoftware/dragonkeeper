@@ -200,13 +200,14 @@ class ScopeConnection(asyncore.dispatcher):
     def handleMessageSTP1(self):
         """process a STP 1 message"""
         # TODO? check service enabled
+        if self.msg_buffer[0] == 0 and self.msg_buffer[1] == 1:
+            scope.storeHelloMessage(self.msg_buffer)
         if connections_waiting:
             connections_waiting.pop(0).sendScopeEventSTP1(self.msg_buffer, self)
         else:
             scope_messages.append(self.msg_buffer)
         # store hello message
-        if self.msg_buffer[0] == 0 and self.msg_buffer[1] == 1:
-            scope.storeHelloMessage(self.msg_buffer)
+
         self.varint = 0
         self.bit_count = 0
         self.binary_buffer = ""

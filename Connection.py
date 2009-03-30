@@ -8,7 +8,7 @@ from os.path import join as path_join
 from mimetypes import types_map
 from common import *
 
-class Connection(asyncore.dispatcher):
+class HTTPConnection(asyncore.dispatcher):
     """To handle a http request in the context of providing
     a http interface to the scope protocol. The purpose of this interface
     is mainly to develop Dragonfly, not to used it for actual debugging.
@@ -39,6 +39,7 @@ class Connection(asyncore.dispatcher):
         self.content_length = 0        
         self.check_input = self.read_headers
         self.query = ''
+        self.raw_post_data = ""
         # Timeout acts also as flag to signal 
         # a connection which still waits for a response 
         self.timeout = 0
@@ -59,17 +60,26 @@ class Connection(asyncore.dispatcher):
                 path, self.query = path.split('?', 1)
             self.headers = dict(( RE_HEADER.split(line, 1) 
                                     for line in headers_raw.split(CRLF) ))
+            arguments = path.split("/")
+            command = arguments and arguments.pop(0) or ""
+
+            """
             try: 
                 command, path = path.split("/", 1)
             except ValueError: 
                 command, path = path, ""
+            """
             command = command.replace('-', '_').replace('.', '_')
+            """
             if not command:
                 command = "redirect_file"
+            """
             self.method = method
             self.path = path
             self.command = command
+            self.arguments = arguments
             self.timeout = time() + TIMEOUT
+            #print command, arguments, path, method
             # POST
             if method == "POST":
                 if "Content-Length" in self.headers:
@@ -79,7 +89,10 @@ class Connection(asyncore.dispatcher):
             # GET
             elif method == "GET":
                 if hasattr(self, command):
-                    getattr(self, command)(command, path)
+                    getattr(self, command)()
+                elif os.path.exists(path) or not path:
+                    
+                    self.serve(path)
                 else:
                     raise Exception("not supported command")
                 if self.in_buffer:
@@ -91,10 +104,15 @@ class Connection(asyncore.dispatcher):
 
     def read_content(self):
         if len(self.in_buffer) >= self.content_length:
-            raw_data = self.in_buffer[0:self.content_length] 
-            self.send_command(raw_data)
-            self.out_buffer += RESPONSE_OK_OK % getTimestamp()
-            self.timeout = 0
+            self.raw_post_data = self.in_buffer[0:self.content_length] 
+            if hasattr(self, self.command):
+                getattr(self, self.command)()
+                # self.send_command(raw_data)
+                self.out_buffer += RESPONSE_OK_OK % getTimestamp()
+                self.timeout = 0
+            else:
+                raise Exception("not supported command")
+            self.raw_post_data = ""
             self.in_buffer = self.in_buffer[self.content_length:]
             self.content_length = 0
             self.check_input = self.read_headers
@@ -105,129 +123,13 @@ class Connection(asyncore.dispatcher):
     # Special GET commands ( first part of the path )
     # ============================================================
 
-    def file(self, command, path):
-        """to get a resource"""
-        self.serve(path)
 
-    def redirect_file(self, command, path):
-        """to redirect the empty path to /file/"""
-        self.out_buffer +=  REDIRECT % ( getTimestamp(), "/file/" )
-        self.timeout = 0
-
-    def services(self, command, path):
-        """to get the service list"""
-        if connections_waiting:
-            print ">>> failed, connections_waiting is not empty"
-        content = SERVICE_LIST % "".join (
-            [SERVICE_ITEM % service.encode('utf-8') 
-            for service in scope.serviceList] 
-            )
-        self.out_buffer += RESPONSE_SERVICELIST % ( 
-            getTimestamp(), 
-            len(content), 
-            content
-            )
-        self.timeout = 0
-
-    def enable(self, command, path):
-        """to enable a scope service"""
-        if scope.services_enabled[path]:
-            if path.startswith('stp-'):
-                scope.pushbackHelloMessage()
-            print ">>> service is already enabled", path
-        else:
-            scope.sendCommand("*enable %s" % path)
-            scope.services_enabled[path] = True
-            if path.startswith('stp-'):
-                scope.setSTPVersion(path)
-            while scope.commands_waiting[path]:
-                scope.sendCommand(scope.commands_waiting[path].pop(0))
-        self.out_buffer += RESPONSE_OK_OK % getTimestamp()
-        self.timeout = 0
-
-    def scope_message(self, command, path):
-        """general call to get the next scope message"""
-        if scope_messages:
-            if scope.version == 'stp-1':
-                self.sendScopeEventSTP1(scope_messages.pop(0), self)
-            else:
-                self.sendScopeEventSTP0(scope_messages.pop(0), self)
-        else:
-            connections_waiting.append(self)
-        self.timeout = 0
 
     def favicon_ico(self, command, path):
         """Opera likes to get always a favicon"""
         self.serve(path_join(sys.path[0], "favicon.ico"))
 
-    # ============================================================
-    # Special POST commands 
-    # ============================================================
 
-    def send_command(self, raw_data):
-        """send a command to scope"""
-        if scope.version == "stp-1":
-            args = map(int, self.path.split('/'))
-            args.append(raw_data)
-            scope.sendCommand(args)
-        else:
-            if not raw_data.startswith("<?xml"):
-                raw_data = XML_PRELUDE % raw_data  
-            msg = "%s %s" % (self.command, raw_data.decode('UTF-8'))
-            if scope.services_enabled[self.command]:
-                scope.sendCommand(msg)
-            else:
-                scope.commands_waiting[self.command].append(msg)
-            
-    # ============================================================
-    # STP 0
-    # ============================================================
-
-    def sendScopeEventSTP0(self, msg, sender):
-        """ return a message to the client"""
-        service, payload = msg
-        if self.debug:
-            if self.debug_format:
-                print "\nsend to client:", service, formatXML(payload)
-            else:
-                print "send to client:", service, payload
-        self.out_buffer += SCOPE_MESSAGE_STP_0 % (
-            getTimestamp(), 
-            service, 
-            len(payload), 
-            payload
-        )
-        self.timeout = 0
-        if not sender == self:
-            self.handle_write()
-
-    # ============================================================
-    # STP 1
-    # ============================================================
-
-    def sendScopeEventSTP1(self, msg, sender):
-        """ return a message to the client"""
-        service, command, status, type, cid, tag, data = msg
-        if not data: 
-            # workaround, status 204 does not work well
-            data = ' '  
-        if self.debug:
-            if self.debug_format:
-                print "\nsend to client:", prettyPrint(msg)
-            else:
-                print "send to client:", msg
-        self.out_buffer += SCOPE_MESSAGE_STP_1 % (
-            getTimestamp(), 
-            service, 
-            command,
-            status,
-            tag,
-            len(data), 
-            data
-            )
-        self.timeout = 0
-        if not sender == self:
-            self.handle_write()
 
     # ============================================================
     # HTTP 
@@ -330,3 +232,136 @@ class Connection(asyncore.dispatcher):
         if self in connections_waiting:
             connections_waiting.remove(self)
         self.close()
+
+
+class ScopeInterface(HTTPConnection):
+
+    def __init__(self, conn, addr, context):        
+        HTTPConnection.__init__(self, conn, addr, context)
+
+
+    # ============================================================
+    # Special GET commands ( first part of the path )
+    # ============================================================
+
+
+
+    def redirect_file(self, arguments):
+        """to redirect the empty path to /file/"""
+        self.out_buffer +=  REDIRECT % ( getTimestamp(), "/file/" )
+        self.timeout = 0
+
+    def services(self):
+        """to get the service list"""
+        if connections_waiting:
+            print ">>> failed, connections_waiting is not empty"
+        content = SERVICE_LIST % "".join (
+            [SERVICE_ITEM % service.encode('utf-8') 
+            for service in scope.serviceList] 
+            )
+        self.out_buffer += RESPONSE_SERVICELIST % ( 
+            getTimestamp(), 
+            len(content), 
+            content
+            )
+        self.timeout = 0
+
+    def enable(self):
+        """to enable a scope service"""
+        service = self.arguments[0]
+        # print 'enable service: ', service
+        if scope.services_enabled[service]:
+            if path.startswith('stp-'):
+                scope.pushbackHelloMessage()
+            print ">>> service is already enabled", service
+        else:
+            scope.sendCommand("*enable %s" % service)
+            scope.services_enabled[service] = True
+            if service.startswith('stp-'):
+                scope.setSTPVersion(service)
+            while scope.commands_waiting[service]:
+                scope.sendCommand(scope.commands_waiting[service].pop(0))
+        self.out_buffer += RESPONSE_OK_OK % getTimestamp()
+        self.timeout = 0
+
+    def scope_message(self):
+        """general call to get the next scope message"""
+        if scope_messages:
+            if scope.version == 'stp-1':
+                self.sendScopeEventSTP1(scope_messages.pop(0), self)
+            else:
+                self.sendScopeEventSTP0(scope_messages.pop(0), self)
+        else:
+            connections_waiting.append(self)
+        # TODO correct?
+        self.timeout = 0
+
+    # ============================================================
+    # Special POST commands 
+    # ============================================================
+
+    def send_command(self):
+        """send a command to scope"""
+        raw_data = self.raw_post_data
+        if scope.version == "stp-1":
+            args = map(int, self.arguments)
+            args.append(raw_data)
+            scope.sendCommand(args)
+        else:
+            if not raw_data.startswith("<?xml"):
+                raw_data = XML_PRELUDE % raw_data  
+            msg = "%s %s" % (self.command, raw_data.decode('UTF-8'))
+            if scope.services_enabled[self.command]:
+                scope.sendCommand(msg)
+            else:
+                scope.commands_waiting[self.command].append(msg)
+            
+    # ============================================================
+    # STP 0
+    # ============================================================
+
+    def sendScopeEventSTP0(self, msg, sender):
+        """ return a message to the client"""
+        service, payload = msg
+        if self.debug:
+            if self.debug_format:
+                print "\nsend to client:", service, formatXML(payload)
+            else:
+                print "send to client:", service, payload
+        self.out_buffer += SCOPE_MESSAGE_STP_0 % (
+            getTimestamp(), 
+            service, 
+            len(payload), 
+            payload
+        )
+        self.timeout = 0
+        if not sender == self:
+            self.handle_write()
+
+    # ============================================================
+    # STP 1
+    # ============================================================
+
+    def sendScopeEventSTP1(self, msg, sender):
+        """ return a message to the client"""
+        service, command, status, type, cid, tag, data = msg
+        if not data: 
+            # workaround, status 204 does not work well
+            data = ' '  
+        if self.debug:
+            if self.debug_format:
+                print "\nsend to client:", prettyPrint(msg)
+            else:
+                print "send to client:", msg
+        self.out_buffer += SCOPE_MESSAGE_STP_1 % (
+            getTimestamp(), 
+            service, 
+            command,
+            status,
+            tag,
+            len(data), 
+            data
+            )
+        self.timeout = 0
+        if not sender == self:
+            self.handle_write()

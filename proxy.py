@@ -1,5 +1,5 @@
 import ConfigParser
-from Connection import Connection
+from Connection import ScopeInterface
 from ScopeConnection import ScopeConnection
 from SimpleServer import SimpleServer, asyncore
 from common import Options
@@ -42,7 +42,7 @@ format: False"""
 
 
 def run_proxy(options, count=None): 
-    SimpleServer(options.host, options.server_port, Connection, options)
+    SimpleServer(options.host, options.server_port, ScopeInterface, options)
     SimpleServer(options.host, options.proxy_port, ScopeConnection, options)
     print "server on: http://%s:%s/" % ( 
                 options.host or "localhost", options.server_port )

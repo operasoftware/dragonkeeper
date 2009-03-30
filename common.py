@@ -484,31 +484,34 @@ def formatXML(in_string):
                 last_match = OPENING_TAG
                 ret.extend([LF, indent_count * INDENT, m.group()])
                 indent_count += 1
-    except:
-        pass
+    except Exception, msg:
+        ret = [in_string]
     return "".join(ret)
 
 def prettyPrint(stp_1_msg):
     # TODO? pretty print data
+    # print stp_1_msg
     service, command, status, type, cid, tag, data = stp_1_msg 
-    service_name = scope.serviceIndexMap[service]['name']
-    return ( 
-        "  service: %s\n" 
-        "  command: %s\n"
-        "  status: %s\n"
-        "  type: %s\n"
-        "  cid: %s\n"
-        "  tag: %s\n"
-        "  data: %s" 
-        ) % (
-        service_name, 
-        commandMap[service_name][command], 
-        statusMap[status], 
-        typeMap[type], 
-        cid, 
-        tag, 
-        data
-        )
+    if hasattr(scope, 'serviceIndexMap'):
+        service_name = scope.serviceIndexMap[service]['name']
+        return ( 
+            "  service: %s\n" 
+            "  command: %s\n"
+            "  status: %s\n"
+            "  type: %s\n"
+            "  cid: %s\n"
+            "  tag: %s\n"
+            "  data: %s" 
+            ) % (
+            service_name, 
+            commandMap[service_name][command], 
+            statusMap[status], 
+            typeMap[type], 
+            cid, 
+            tag, 
+            data
+            )
+    return stp_1_msg
 
 class Options(object):
     #todo: subclass dict
