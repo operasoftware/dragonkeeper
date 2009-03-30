@@ -1,5 +1,7 @@
 import ConfigParser
-from Connection import ScopeInterface
+import sys
+import os
+from HTTPScopeInterface import HTTPScopeInterface
 from ScopeConnection import ScopeConnection
 from SimpleServer import SimpleServer, asyncore
 from common import Options
@@ -42,7 +44,7 @@ format: False"""
 
 
 def run_proxy(options, count=None): 
-    SimpleServer(options.host, options.server_port, ScopeInterface, options)
+    SimpleServer(options.host, options.server_port, HTTPScopeInterface, options)
     SimpleServer(options.host, options.proxy_port, ScopeConnection, options)
     print "server on: http://%s:%s/" % ( 
                 options.host or "localhost", options.server_port )
@@ -163,12 +165,8 @@ def _parse_options():
         
     return appopts
 
-if __name__ == "__main__":
-    import sys
-    import os
-
+def main_func():
     options = _parse_options()
-
     os.chdir(options.root) 
     try:
         run_proxy(options)
@@ -182,4 +180,10 @@ if __name__ == "__main__":
     cProfile.run("run_proxy(count = 5000, context = options)")
     p.close()
     """
+    
+if __name__ == "__main__":
+    main_func()
+
+
+
   

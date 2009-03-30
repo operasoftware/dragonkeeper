@@ -3,6 +3,21 @@ import asyncore
 import codecs
 from common import *
 
+from HTTPScopeInterface import connections_waiting, scope_messages, scope, formatXML, prettyPrint
+
+def encode_varuint(value):
+    if value == 0:
+        return "\0"
+    out = ""
+    value = value & 0xffffffffffffffff
+    while value:
+        part = value & 0x7f
+        value >>= 7
+        if value:
+            part |= 0x80
+        out += chr(part)
+    return out
+
 class ScopeConnection(asyncore.dispatcher):
     """To handle the socket connection to scope."""
 

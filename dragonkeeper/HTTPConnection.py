@@ -1,0 +1,173 @@
+import asyncore
+import sys
+from time import time
+from os import stat, listdir
+from os.path import isfile, isdir
+from os.path import exists as path_exists
+from os.path import join as path_join
+from mimetypes import types_map
+from common import *
+
+class HTTPConnection(asyncore.dispatcher):
+    """To provide a simple HTTP response handler.
+    Special methods can be implementd by subclassing this class
+    """
+
+    def __init__(self, conn, addr, context):        
+        asyncore.dispatcher.__init__(self, sock = conn)
+        self.addr = addr
+        self.in_buffer = ""
+        self.out_buffer = ""
+        self.content_length = 0        
+        self.check_input = self.read_headers
+        self.query = ''
+        self.raw_post_data = ""
+        # Timeout acts also as flag to signal 
+        # a connection which still waits for a response 
+        self.timeout = 0
+        self.debug = context.debug
+        self.debug_format = context.format
+
+    def read_headers(self):
+        if 2*CRLF in self.in_buffer:
+            headers_raw, self.in_buffer = self.in_buffer.split(2*CRLF, 1)
+            first_line, headers_raw = headers_raw.split(CRLF, 1)
+            method, path, protocol = first_line.split(BLANK, 2)
+            path = path.lstrip("/")
+            if "?" in path:
+                path, self.query = path.split('?', 1)
+            self.headers = dict(( RE_HEADER.split(line, 1) 
+                                    for line in headers_raw.split(CRLF) ))
+            arguments = path.split("/")
+            command = arguments and arguments.pop(0) or ""
+            command = command.replace('-', '_').replace('.', '_')
+            self.method = method
+            self.path = path
+            self.command = command
+            self.arguments = arguments
+            self.timeout = time() + TIMEOUT
+            # POST
+            if method == "POST":
+                if "Content-Length" in self.headers:
+                    self.content_length = int(self.headers["Content-Length"])
+                    self.check_input = self.read_content
+                    self.check_input()                
+            # GET
+            elif method == "GET":
+                if hasattr(self, command):
+                    getattr(self, command)()
+                elif os.path.exists(path) or not path:
+                    self.serve(path)
+                elif path == "favicon.ico":
+                    self.serve(path_join(sys.path[0], "favicon.ico"))
+                else:
+                    raise Exception("not supported command")
+                if self.in_buffer:
+                    self.check_input()
+            # Not implemented method
+            else:
+                self.out_buffer += NOT_FOUND % getTimestamp()
+                self.timeout = 0
+
+    def read_content(self):
+        if len(self.in_buffer) >= self.content_length:
+            self.raw_post_data = self.in_buffer[0:self.content_length] 
+            if hasattr(self, self.command):
+                getattr(self, self.command)()
+            else:
+                raise Exception("Not implemented command %s" % self.command)
+            self.raw_post_data = ""
+            self.in_buffer = self.in_buffer[self.content_length:]
+            self.content_length = 0
+            self.check_input = self.read_headers
+            if self.in_buffer:
+                self.check_input()
+
+    def serve(self, path):
+        system_path = webURIToSystemPath(path.rstrip("/")) or "."
+        if path_exists(system_path) or path == "":
+            if isfile(system_path):
+                self.serveFile(path, system_path)
+            elif isdir(system_path) or path == "":
+                self.serveDir(path, system_path)
+        else:
+            self.out_buffer += NOT_FOUND % getTimestamp()
+            self.timeout = 0
+
+    def serveFile(self, path, system_path):
+        if "If-Modified-Since" in self.headers and \
+           timestampToTime(self.headers["If-Modified-Since"]) >= \
+           int(stat(system_path).st_mtime):
+            self.out_buffer += NOT_MODIFIED % getTimestamp()
+            self.timeout = 0
+        else:
+            ending = "." in path and path[path.rfind("."):] or "no-ending"
+            mime = ending in types_map and types_map[ending] or 'text/plain'
+            try:
+                f = open(system_path, 'rb')
+                content = f.read()
+                f.close()            
+                self.out_buffer += RESPONSE_OK_CONTENT % (
+                    getTimestamp(),
+                    'Last-Modified: %s%s' %  (
+                        getTimestamp(system_path), 
+                        CRLF
+                        ),
+                    mime, 
+                    len(content), 
+                    content
+                    )
+                self.timeout = 0         
+            except:
+                self.out_buffer += NOT_FOUND % getTimestamp()
+                self.timeout = 0
+
+    def serveDir(self, path, system_path):
+        if path and not path.endswith('/'):
+            self.out_buffer +=  REDIRECT % (getTimestamp(), path + '/')
+            self.timeout = 0
+        else:
+            try:
+                items_dir = [item for item in listdir(system_path) 
+                                if isdir(path_join(system_path, item))]
+                items_file = [item for item in listdir(system_path) 
+                                if isfile(path_join(system_path, item))]
+                items_dir.sort()
+                items_file.sort()
+                if path:
+                    items_dir.insert(0, '..')
+                markup = [ITEM_DIR % (quote(item), item) 
+                            for item in items_dir]
+                markup.extend([ITEM_FILE % (quote(item), item) 
+                                    for item in items_file])
+                content = DIR_VIEW % ( "".join(markup) )
+            except Exception, msg:
+                content = DIR_VIEW % """<li style="color:#f30">%s</li>""" % msg
+            self.out_buffer += RESPONSE_OK_CONTENT % ( 
+                getTimestamp(), 
+                '', 
+                "text/html", 
+                len(content), 
+                content
+            )
+            self.timeout = 0
+
+    # ============================================================
+    # Implementations of the asyncore.dispatcher class methods 
+    # ============================================================
+
+    def handle_read(self):
+        self.in_buffer += self.recv(BUFFERSIZE)
+        self.check_input()
+    
+    def writable(self):
+        return bool(self.out_buffer)
+        
+    def handle_write(self):
+        sent = self.send(self.out_buffer)
+        self.out_buffer = self.out_buffer[sent:]
+
+    def handle_close(self):
+        self.close()
+
+
