@@ -1,7 +1,5 @@
 import socket
 import asyncore
-from common import *
-
 
 class SimpleServer(asyncore.dispatcher):
     

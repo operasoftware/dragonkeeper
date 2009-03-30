@@ -1,9 +1,9 @@
 import socket
 import asyncore
 import codecs
-from common import *
-
-from HTTPScopeInterface import connections_waiting, scope_messages, scope, formatXML, prettyPrint
+from common import BLANK, BUFFERSIZE
+from HTTPScopeInterface import connections_waiting, scope_messages, scope
+from HTTPScopeInterface import formatXML, prettyPrint
 
 def encode_varuint(value):
     if value == 0:

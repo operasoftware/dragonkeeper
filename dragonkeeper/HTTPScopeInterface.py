@@ -24,7 +24,8 @@ The server is named Dragonkeeper to stay in the started namespace.
 
 import re
 import HTTPConnection
-from common import time, CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, getTimestamp
+from time import time
+from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, getTimestamp
 
 
 
@@ -407,10 +408,11 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
                 self.sendScopeEventSTP1(scope_messages.pop(0), self)
             else:
                 self.sendScopeEventSTP0(scope_messages.pop(0), self)
+            self.timeout = 0
         else:
             connections_waiting.append(self)
         # TODO correct?
-        self.timeout = 0
+        
 
     # ============================================================
     # POST commands 
@@ -492,7 +494,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         if self.timeout and time() > self.timeout and not self.out_buffer:
             if self in connections_waiting:
                 connections_waiting.remove(self)
-                if not self.command == "scope-message": 
+                if not self.command == "scope_message": 
                     print ">>> failed, wrong connection type in queue" 
                 self.out_buffer += self.RESPONSE_TIMEOUT % getTimestamp()
             else:
