@@ -125,7 +125,7 @@ class HTTPConnection(asyncore.dispatcher):
 
 
 
-    def favicon_ico(self, command, path):
+    def favicon_ico(self):
         """Opera likes to get always a favicon"""
         self.serve(path_join(sys.path[0], "favicon.ico"))
 
