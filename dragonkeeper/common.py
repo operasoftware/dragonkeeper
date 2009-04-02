@@ -73,16 +73,22 @@ REDIRECT = RESPONSE_BASIC % (
     'Location: %s' + 2 * CRLF
     )
 
-# NOT_FOUND % ( timestamp )
+# NOT_FOUND % ( timestamp, content-length, content )
 # HTTP/1.1 404 NOT FOUND
 # Date: %s
 # Server: Dragonkeeper/0.8
+# Content-Type: text/plain  
+# Content-Length: %s
+# 
+# %s
 
 NOT_FOUND = RESPONSE_BASIC % (
     404, 
     'NOT FOUND',
     '%s',
-    'Content-Length:0' + 2 * CRLF 
+    'Content-Type: text/plain' + CRLF + \
+    'Content-Length:%s' + 2 * CRLF + \
+    '%s'
     )
 
 # The template to create a html directory view

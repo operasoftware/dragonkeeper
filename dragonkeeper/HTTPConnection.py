@@ -46,6 +46,7 @@ class HTTPConnection(asyncore.dispatcher):
             self.command = command
             self.arguments = arguments
             self.timeout = time() + TIMEOUT
+            handled = False
             # POST
             if method == "POST":
                 if "Content-Length" in self.headers:
@@ -61,12 +62,23 @@ class HTTPConnection(asyncore.dispatcher):
                 elif path == "favicon.ico":
                     self.serve(path_join(sys.path[0], "favicon.ico"))
                 else:
-                    raise Exception("not supported command")
+                    content = "The server cannot handle: %s" % path
+                    self.out_buffer += NOT_FOUND % (
+                        getTimestamp(),
+                        len(content),
+                        content
+                        )
+                    self.timeout = 0
                 if self.in_buffer:
                     self.check_input()
             # Not implemented method
             else:
-                self.out_buffer += NOT_FOUND % getTimestamp()
+                content = "The server cannot handle: %s" % method
+                self.out_buffer += NOT_FOUND % ( 
+                    getTimestamp(), 
+                    len(content), 
+                    content
+                    )
                 self.timeout = 0
 
     def read_content(self):
@@ -75,7 +87,12 @@ class HTTPConnection(asyncore.dispatcher):
             if hasattr(self, self.command):
                 getattr(self, self.command)()
             else:
-                raise Exception("Not implemented command %s" % self.command)
+                content = "The server cannot handle: %s" % self.path
+                self.out_buffer += NOT_FOUND % (
+                    getTimestamp(),
+                    len(content),
+                    content
+                    )
             self.raw_post_data = ""
             self.in_buffer = self.in_buffer[self.content_length:]
             self.content_length = 0
@@ -91,7 +108,12 @@ class HTTPConnection(asyncore.dispatcher):
             elif isdir(system_path) or path == "":
                 self.serveDir(path, system_path)
         else:
-            self.out_buffer += NOT_FOUND % getTimestamp()
+            content = "The sever couldn't find %s" % system_path
+            self.out_buffer += NOT_FOUND % (
+                getTimestamp(),
+                len(content),
+                content
+                )
             self.timeout = 0
 
     def serveFile(self, path, system_path):
@@ -119,7 +141,12 @@ class HTTPConnection(asyncore.dispatcher):
                     )
                 self.timeout = 0         
             except:
-                self.out_buffer += NOT_FOUND % getTimestamp()
+                content = "The server cannot find %s" % system_path
+                self.out_buffer += NOT_FOUND % (
+                    getTimestamp(),
+                    len(content),
+                    content
+                    )
                 self.timeout = 0
 
     def serveDir(self, path, system_path):
