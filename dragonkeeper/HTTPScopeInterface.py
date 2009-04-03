@@ -388,7 +388,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         service = self.arguments[0]
         # print 'enable service: ', service
         if scope.services_enabled[service]:
-            if path.startswith('stp-'):
+            if service.startswith('stp-'):
                 scope.pushbackHelloMessage()
             print ">>> service is already enabled", service
         else:
