@@ -136,13 +136,17 @@ class Scope(object):
     def setServiceList(self, list):
         self.serviceList = list
 
+    # TODO clean up naming
     def setSTPVersion(self, version):
-        self.version = version
+        # self.version = version
         if version == "stp-1":
             self.connection.setInitializerSTP_1()
             self.sendCommand = self.connection.send_command_STP_1
         else:
             print "This stp version is not jet supported"
+
+    def handle_STP1_initializer(self):
+        self.version = "stp-1"
 
     def storeHelloMessage(self, msg):
         self.hello_msg = msg
@@ -182,39 +186,42 @@ scope = Scope()
 
 def formatXML(in_string):
     """To pretty print STP 0 messages"""
-    in_string = re.sub(r"<\?[^>]*>", "", in_string)
-    ret = []
-    indent_count = 0
-    INDENT = "  "
-    LF = "\n"
-    TEXT = 0
-    TAG = 1
-    CLOSING_TAG = 2
-    OPENING_CLOSING_TAG = 3
-    OPENING_TAG = 4
-    matches_iter = re.finditer(r"([^<]*)(<(\/)?[^>/]*(\/)?>)", in_string)
-    try:
-        while True:
-            m = matches_iter.next()
-            matches = m.groups()
-            if matches[CLOSING_TAG]:
-                indent_count -= 1
-                if matches[TEXT] or last_match == OPENING_TAG:
-                    ret.append(m.group())
-                else:
+    if "<" in in_string:
+        in_string = re.sub(r"<\?[^>]*>", "", in_string)
+        ret = []
+        indent_count = 0
+        INDENT = "  "
+        LF = "\n"
+        TEXT = 0
+        TAG = 1
+        CLOSING_TAG = 2
+        OPENING_CLOSING_TAG = 3
+        OPENING_TAG = 4
+        matches_iter = re.finditer(r"([^<]*)(<(\/)?[^>/]*(\/)?>)", in_string)
+        try:
+            while True:
+                m = matches_iter.next()
+                matches = m.groups()
+                if matches[CLOSING_TAG]:
+                    indent_count -= 1
+                    if matches[TEXT] or last_match == OPENING_TAG:
+                        ret.append(m.group())
+                    else:
+                        ret.extend([LF, indent_count * INDENT, m.group()])
+                    last_match = CLOSING_TAG
+                elif matches[OPENING_CLOSING_TAG] or "<![CDATA[" in matches[1]:
+                    last_match = OPENING_CLOSING_TAG
                     ret.extend([LF, indent_count * INDENT, m.group()])
-                last_match = CLOSING_TAG
-            elif matches[OPENING_CLOSING_TAG] or "<![CDATA[" in matches[1]:
-                last_match = OPENING_CLOSING_TAG
-                ret.extend([LF, indent_count * INDENT, m.group()])
-            else:
-                last_match = OPENING_TAG
-                ret.extend([LF, indent_count * INDENT, m.group()])
-                indent_count += 1
-    except StopIteration:
-        pass
-    except:
-        raise    
+                else:
+                    last_match = OPENING_TAG
+                    ret.extend([LF, indent_count * INDENT, m.group()])
+                    indent_count += 1
+        except StopIteration:
+            pass
+        except:
+            raise
+    else:
+        ret = [in_string]
     return "".join(ret)
 
 def prettyPrint(stp_1_msg):
@@ -388,7 +395,6 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     def enable(self):
         """to enable a scope service"""
         service = self.arguments[0]
-        # print 'enable service: ', service
         if scope.services_enabled[service]:
             if service.startswith('stp-'):
                 scope.pushbackHelloMessage()
@@ -396,8 +402,10 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         else:
             scope.sendCommand("*enable %s" % service)
             scope.services_enabled[service] = True
+            
             if service.startswith('stp-'):
                 scope.setSTPVersion(service)
+            
             while scope.commands_waiting[service]:
                 scope.sendCommand(scope.commands_waiting[service].pop(0))
         self.out_buffer += self.RESPONSE_OK_OK % getTimestamp()
@@ -424,8 +432,10 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         """send a command to scope"""
         raw_data = self.raw_post_data
         if scope.version == "stp-1":
-            args = map(int, self.arguments)
+            args = [self.arguments.pop(0)]
+            args.extend(map(int, self.arguments))
             args.append(raw_data)
+            print 'arguments in http scope interface:', args 
             scope.sendCommand(args)
         else:
             service = self.arguments[0]
@@ -457,6 +467,9 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             len(payload), 
             payload
         )
+        if payload == "STP/1\n":
+            scope.handle_STP1_initializer()
+            
         self.timeout = 0
         if not sender == self:
             self.handle_write()

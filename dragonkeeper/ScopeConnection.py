@@ -20,6 +20,17 @@ def encode_varuint(value):
 
 class ScopeConnection(asyncore.dispatcher):
     """To handle the socket connection to scope."""
+    
+    STP1M_TYPE_COMMAND = encode_varuint(1)
+
+    STP1M_SERVICE = encode_varuint( 1 << 3 | 2 )
+    STP1M_COMMID = encode_varuint( 2 << 3 | 0 )
+    STP1M_FORMAT = encode_varuint( 3 << 3 | 0 )
+    STP1M_STATUS = encode_varuint( 4 << 3 | 0 )
+    STP1M_TAG = encode_varuint( 5 << 3 | 0 )
+    STP1M_CID = encode_varuint( 6 << 3 | 0 )
+    STP1M_UUID = encode_varuint( 7 << 3 | 2 )
+    STP1M_PAYLOAD = encode_varuint( 8 << 3 | 2 )
 
     def __init__(self, conn, addr, context):        
         asyncore.dispatcher.__init__(self, sock=conn)
@@ -40,6 +51,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.msg_buffer = []
         self.parse_state = 0
         self.parse_msg_state = ""
+        self.clientID = ""
         scope.setConnection(self)
 
     # ============================================================
@@ -73,6 +85,13 @@ class ScopeConnection(asyncore.dispatcher):
         self.handle_write()
 
 
+    def send_STP0_message_to_client(self, command, msg):
+        if connections_waiting:
+            connections_waiting.pop(0).sendScopeEventSTP0(
+                    (command, msg), self)
+        else:
+            scope_messages.append((command, msg))
+
         
     def read_int_STP_0(self):
         """read int STP 0 message"""
@@ -96,11 +115,14 @@ class ScopeConnection(asyncore.dispatcher):
                     scope.commands_waiting[service] = []
                     scope.services_enabled[service] = False
             elif command in scope.services_enabled:
+                self.send_STP0_message_to_client(command, msg)
+                """
                 if connections_waiting:
                     connections_waiting.pop(0).sendScopeEventSTP0(
                             (command, msg), self)
                 else:
                     scope_messages.append((command, msg))
+                """
             self.in_buffer = self.in_buffer[self.msg_length:]
             self.msg_length = 0
             self.check_input = self.read_int_STP_0
@@ -123,25 +145,59 @@ class ScopeConnection(asyncore.dispatcher):
     # STP 1
     # ============================================================
 
+    """
+    message Command
+    {
+      required string service = 1;
+      required uint32 commandID = 2;
+      required uint32 format = 3;
+      optional uint32 tag = 5;
+      required binary payload = 8;
+
+      // either clientID or uuid must be sent
+      optional uint32 clientID = 6;
+      optional string uuid = 7;
+    }
+    """
+
+    def extractID(self, payload):
+        #  '["json","uuid:798551239038509750"]']
+        id = payload.split(',', 1)[1].strip('"]')
+        # print 'extracted id:', id
+        return self.STP1M_UUID + encode_varuint(len(id)) + id
+ 
+
+
     def send_command_STP_1(self, msg):
         """ to send a message to scope"""
-        service, command, type, tag, data = msg
+        service, command, format, tag, payload = msg
         if self.debug:
+            """
             if self.debug_format:
                 print "\nsend to scope:", prettyPrint(
-                                (service, command, 0, type, 0, tag, data))
+                                (service, command, 0, format, 0, tag, payload))
+            
             else:
-                print "send to scope:", service, command, type, tag,  data
-        self.out_buffer += ( 
-            encode_varuint(service) + 
-            encode_varuint(command) + 
-            encode_varuint(type) +
-            "\0" +
-            encode_varuint(tag) + 
-            encode_varuint(len(data)) + 
-            data +
-            "\0" 
+            """
+            print ("send to scope:\n  " +
+                    "service:"), service, ("\n  " +
+                    "command:"), command, ("\n  " +
+                    "format:"), format,  ("\n  " +
+                    "tag:"), tag, ("\n  " +
+                    "payload:"), payload
+                    
+        stp_1_msg = (
+            self.STP1M_TYPE_COMMAND + 
+            self.STP1M_SERVICE + encode_varuint(len(service)) + service +
+            self.STP1M_COMMID + encode_varuint(command) + 
+            self.STP1M_FORMAT + encode_varuint(format) +
+            ( tag and ( self.STP1M_TAG + encode_varuint(tag) ) or "" ) +
+            ( self.clientID or self.extractID(payload) ) +
+            self.STP1M_PAYLOAD + encode_varuint(len(payload)) + payload 
+            
             )
+        self.out_buffer += "STP1" + encode_varuint(len(stp_1_msg)) + stp_1_msg
+        print self.out_buffer
         self.handle_write()
 
     def setInitializerSTP_1(self):
@@ -161,6 +217,10 @@ class ScopeConnection(asyncore.dispatcher):
         if self.in_buffer.startswith("STP/1\n"):
             print self.in_buffer[0:6]
             self.in_buffer = self.in_buffer[6:]
+            self.send_STP0_message_to_client("", "STP/1\n")
+            print 'version:', scope.version
+            # TODO this could cause problems, if there is no conection waiting
+            
             self.handle_read = self.handle_read_STP_1
             self.check_input = self.read_varint
             if self.in_buffer:
@@ -210,6 +270,7 @@ class ScopeConnection(asyncore.dispatcher):
     def handle_read_STP_1(self):
         """general read event handler for STP 1"""
         self.in_buffer += self.recv(BUFFERSIZE)
+        print self.in_buffer
         self.check_input()
 
     def handleMessageSTP1(self):
