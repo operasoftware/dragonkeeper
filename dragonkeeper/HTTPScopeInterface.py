@@ -25,7 +25,7 @@ The server is named Dragonkeeper to stay in the started namespace.
 import re
 import HTTPConnection
 from time import time
-from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, getTimestamp
+from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, getTimestamp
 
 
 
