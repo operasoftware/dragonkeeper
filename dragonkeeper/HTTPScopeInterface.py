@@ -211,8 +211,10 @@ def formatXML(in_string):
                 last_match = OPENING_TAG
                 ret.extend([LF, indent_count * INDENT, m.group()])
                 indent_count += 1
-    except Exception, msg:
-        ret = [in_string]
+    except StopIteration:
+        pass
+    except:
+        raise    
     return "".join(ret)
 
 def prettyPrint(stp_1_msg):
@@ -426,13 +428,14 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             args.append(raw_data)
             scope.sendCommand(args)
         else:
+            service = self.arguments[0]
             if not raw_data.startswith("<?xml"):
                 raw_data = XML_PRELUDE % raw_data  
-            msg = "%s %s" % (self.command, raw_data.decode('UTF-8'))
-            if scope.services_enabled[self.command]:
+            msg = "%s %s" % (service, raw_data.decode('UTF-8'))
+            if scope.services_enabled[service]:
                 scope.sendCommand(msg)
             else:
-                scope.commands_waiting[self.command].append(msg)
+                scope.commands_waiting[service].append(msg)
         self.out_buffer += self.RESPONSE_OK_OK % getTimestamp()
         self.timeout = 0
             
@@ -498,7 +501,11 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
                     print ">>> failed, wrong connection type in queue" 
                 self.out_buffer += self.RESPONSE_TIMEOUT % getTimestamp()
             else:
-                self.out_buffer += NOT_FOUND % getTimestamp()
+                self.out_buffer += NOT_FOUND % ( 
+                    getTimestamp(), 
+                    0, 
+                    ''
+                    )
             self.timeout = 0
         return bool(self.out_buffer)
         
