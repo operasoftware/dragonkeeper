@@ -34,34 +34,39 @@ connections_waiting = []
 scope_messages = []
 
 commandMap = {
+    "console-logger": {
+        0: "ConsoleMessage",
+        },
+    "http-logger": {
+        0: "onRequest",
+        2: "onResponse",
+        },
     "scope": {
-        0: "OnServices",
-        1: "OnConnect",
-        2: "OnQuit",
-        3: "OnConnectionLost",
+        3: "Connect",
+        4: "Disconnect",
         5: "Enable",
         6: "Disable",
-        7: "Configure",
-        8: "Info",
-        9: "Quit"
+        7: "Info",
+        8: "Quit",
+        0: "onServices",
+        1: "onQuit",
+        2: "onConnectionLost",
+        9: "onError",
         },
     "window-manager": {
-        1: "GetActiveWindow", 
+        1: "GetActiveWindow",
         3: "ListWindows",
         5: "ModifyFilter",
-        0: "OnWindowUpdated",
-        2: "OnWindowClosed",
-        4: "OnWindowActivated"
-        },
-    "console-logger": {
-        0: "ConsoleMessage"
+        0: "onWindowUpdated",
+        2: "onWindowClosed",
+        4: "onWindowActivated",
         },
     "ecmascript-debugger": {
         1: "ListRuntimes",
         2: "ContinueThread",
         3: "Eval",
         4: "ExamineObjects",
-        5: "SpotlightObjects",
+        5: "SpotlightObject",
         6: "AddBreakpoint",
         7: "RemoveBreakpoint",
         8: "AddEventHandler",
@@ -70,24 +75,21 @@ commandMap = {
         11: "GetBacktrace",
         12: "Break",
         13: "InspectDom",
-        14: "OnRuntimeStarted",
-        15: "OnRuntimeStopped",
-        16: "OnNewScript",
-        17: "OnThreadStarted",
-        18: "OnThreadFinished",
-        19: "OnThreadStoppedAt",
-        20: "OnHandleEvent",
-        21: "OnObjectSelected",
         22: "CssGetIndexMap",
         23: "CssGetAllStylesheets",
         24: "CssGetStylesheet",
         25: "CssGetStyleDeclarations",
-        26: "GetSelectedObject"
+        26: "GetSelectedObject",
+        27: "SpotlightObjects",
+        14: "onRuntimeStarted",
+        15: "onRuntimeStopped",
+        16: "onNewScript",
+        17: "onThreadStarted",
+        18: "onThreadFinished",
+        19: "onThreadStoppedAt",
+        20: "onHandleEvent",
+        21: "onObjectSelected",
         },
-    "http-logger": {
-        0: "OnRequest",
-        2: "OnResponse"
-        }
     }
 
 statusMap = {
@@ -106,8 +108,7 @@ statusMap = {
 typeMap = {
     0: "protocol-buffer",
     1: "json",
-    2: "xml",
-    3: "scope"
+    2: "xml"
     }
     
 SERVICE_LIST = """<services>%s</services>"""
@@ -227,27 +228,38 @@ def formatXML(in_string):
 def prettyPrint(stp_1_msg):
     # TODO? pretty print data
     # print stp_1_msg
-    service, command, status, type, cid, tag, data = stp_1_msg 
-    if hasattr(scope, 'serviceIndexMap'):
-        service_name = scope.serviceIndexMap[service]['name']
-        return ( 
-            "  service: %s\n" 
-            "  command: %s\n"
-            "  status: %s\n"
-            "  type: %s\n"
-            "  cid: %s\n"
-            "  tag: %s\n"
-            "  data: %s" 
-            ) % (
-            service_name, 
-            commandMap[service_name][command], 
-            statusMap[status], 
-            typeMap[type], 
-            cid, 
-            tag, 
-            data
-            )
-    return stp_1_msg
+    """
+    message TransportMessage
+    {
+        required string service = 1;
+        required uint32 commandID = 2;
+        required uint32 format = 3;
+        optional uint32 status = 4;
+        optional uint32 tag = 5;
+        optional uint32 clientID = 6;
+        optional string uuid = 7;
+        required binary payload = 8;
+    }
+    """
+    service = stp_1_msg[1]
+    return ( 
+        "  service: %s\n" 
+        "  command: %s\n"
+        "  status: %s\n"
+        "  type: %s\n"
+        "  cid: %s\n"
+        "  tag: %s\n"
+        "  data: %s" 
+        ) % (
+        service, 
+        commandMap[service][stp_1_msg[2]], 
+        statusMap[stp_1_msg[4]], 
+        typeMap[stp_1_msg[3]], 
+        stp_1_msg[6], 
+        stp_1_msg[5], 
+        stp_1_msg[8]
+        )
+
 
 class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     """To provide a http interface to the scope protocol. 
@@ -435,7 +447,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             args = [self.arguments.pop(0)]
             args.extend(map(int, self.arguments))
             args.append(raw_data)
-            print 'arguments in http scope interface:', args 
+            # print 'arguments in http scope interface:', args 
             scope.sendCommand(args)
         else:
             service = self.arguments[0]
@@ -479,24 +491,37 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     # ============================================================
 
     def sendScopeEventSTP1(self, msg, sender):
-        """ return a message to the client"""
-        service, command, status, type, cid, tag, data = msg
-        if not data: 
+        """ return a message to the client
+        message TransportMessage
+        {
+            required string service = 1;
+            required uint32 commandID = 2;
+            required uint32 format = 3;
+            optional uint32 status = 4;
+            optional uint32 tag = 5;
+            optional uint32 clientID = 6;
+            optional string uuid = 7;
+            required binary payload = 8;
+        }
+        """
+        if not msg[8]: 
             # workaround, status 204 does not work well
-            data = ' '  
+            msg[8] = ' '  
         if self.debug:
+            
             if self.debug_format:
-                print "\nsend to client:", prettyPrint(msg)
+                print "\nsend to client:\n", prettyPrint(msg)
             else:
+            
                 print "send to client:", msg
         self.out_buffer += self.SCOPE_MESSAGE_STP_1 % (
             getTimestamp(), 
-            service, 
-            command,
-            status,
-            tag,
-            len(data), 
-            data
+            msg[1], # service
+            msg[2], # command
+            msg[4], # status
+            msg[5], # tag
+            len(msg[8]), 
+            msg[8] # payload
             )
         self.timeout = 0
         if not sender == self:
