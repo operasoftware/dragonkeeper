@@ -19,6 +19,8 @@ on the client side. The target service is added to the response
 as custom header 'X-Scope-Message-Service'. This pattern will be extended 
 for the STP 1 version.
 The server is named Dragonkeeper to stay in the started namespace.
+
+It is only for one client and one host.
 """
 
 
@@ -115,7 +117,6 @@ SERVICE_LIST = """<services>%s</services>"""
 SERVICE_ITEM = """<service name="%s"/>"""
 XML_PRELUDE = """<?xml version="1.0"?>%s"""
 
-
 class Scope(object):
     """Used as a namespace for scope with methods to register 
     the send command and the service list"""
@@ -140,6 +141,7 @@ class Scope(object):
     # TODO clean up naming
     def setSTPVersion(self, version):
         # self.version = version
+        # version gets set as soon as the STP/1 token is received
         if version == "stp-1":
             self.connection.setInitializerSTP_1()
             self.sendCommand = self.connection.send_command_STP_1
@@ -149,34 +151,6 @@ class Scope(object):
     def handle_STP1_initializer(self):
         self.version = "stp-1"
 
-    def storeHelloMessage(self, msg):
-        self.hello_msg = msg
-        """
-        services: scope=1.0.0,0,1;console-logger=1.0.0,0,1;...;
-        """
-        self.serviceMap = {}
-        self.serviceIndexMap = {}
-        data = msg[6]
-        services_raw = data[data.rfind('services:') + len('services:'):]
-        for index, service_raw in enumerate(services_raw.strip().split(';')):
-            if service_raw:
-                service, values = service_raw.split('=')                
-                version, active, max_active = values.split(',')
-                self.serviceIndexMap[index] = self.serviceMap[service] = {
-                    'name': service,
-                    'version': version,
-                    'active': active,
-                    'max-active': max_active,
-                    'index': index
-                    }
-        # print self.serviceIndexMap
-
-            
-
-    def pushbackHelloMessage(self):
-        if scope_messages:
-            print "len scope_messages:", len(scope_messages)
-        scope_messages.append(self.hello_msg)
     def reset(self):
         self.serviceList = []
         self.sendCommand = self.empty_call  
@@ -225,10 +199,9 @@ def formatXML(in_string):
         ret = [in_string]
     return "".join(ret)
 
-def prettyPrint(stp_1_msg):
-    # TODO? pretty print data
-    # print stp_1_msg
+def prettyPrint(msg, format):
     """
+    message type: 1 = command, 2 = response, 3 = event, 4 = error
     message TransportMessage
     {
         required string service = 1;
@@ -241,25 +214,21 @@ def prettyPrint(stp_1_msg):
         required binary payload = 8;
     }
     """
-    service = stp_1_msg[1]
-    return ( 
-        "  service: %s\n" 
-        "  command: %s\n"
-        "  status: %s\n"
-        "  type: %s\n"
-        "  cid: %s\n"
-        "  tag: %s\n"
-        "  data: %s" 
-        ) % (
-        service, 
-        commandMap[service][stp_1_msg[2]], 
-        statusMap[stp_1_msg[4]], 
-        typeMap[stp_1_msg[3]], 
-        stp_1_msg[6], 
-        stp_1_msg[5], 
-        stp_1_msg[8]
-        )
+    print "send to ", msg[0] == 1 and "host" or "client", ":"
+    if format:
+        service = msg[1]
+        print "  service:", service
+        print "  command:", commandMap[service][msg[2]]
+        print "  format:", typeMap[msg[3]]
+        if 4 in msg:
+            print "  status:", commandMap[service][msg[4]]
 
+        print "  cid:", msg[6]
+        if 5 in msg:
+            print "  tag:", msg[5]
+        print "  payload:", msg[8], '\n'
+    else:
+        print msg
 
 class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     """To provide a http interface to the scope protocol. 
@@ -409,7 +378,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         service = self.arguments[0]
         if scope.services_enabled[service]:
             if service.startswith('stp-'):
-                scope.pushbackHelloMessage()
+                pass # scope.pushbackHelloMessage()
             print ">>> service is already enabled", service
         else:
             scope.sendCommand("*enable %s" % service)
@@ -444,11 +413,31 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         """send a command to scope"""
         raw_data = self.raw_post_data
         if scope.version == "stp-1":
-            args = [self.arguments.pop(0)]
-            args.extend(map(int, self.arguments))
-            args.append(raw_data)
-            # print 'arguments in http scope interface:', args 
-            scope.sendCommand(args)
+            args = self.arguments
+            """
+            message type: 1 = command, 2 = response, 3 = event, 4 = error
+            message TransportMessage
+            {
+                required string service = 1;
+                required uint32 commandID = 2;
+                required uint32 format = 3;
+                optional uint32 status = 4;
+                optional uint32 tag = 5;
+                optional uint32 clientID = 6;
+                optional string uuid = 7;
+                required binary payload = 8;
+            }
+            /send-command/" + service + "/" + command_id + "/1/" + tag +"/" + _cid
+            """
+            scope.sendCommand({
+                    0: 1, # message type
+                    1: args[0],
+                    2: int(args[1]),
+                    3: int(args[2]),
+                    5: int(args[3]),
+                    6: int(args[4]),
+                    8: self.raw_post_data
+                })
         else:
             service = self.arguments[0]
             if not raw_data.startswith("<?xml"):
@@ -505,15 +494,10 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         }
         """
         if not msg[8]: 
-            # workaround, status 204 does not work well
+            # workaround, status 204 does not work
             msg[8] = ' '  
         if self.debug:
-            
-            if self.debug_format:
-                print "\nsend to client:\n", prettyPrint(msg)
-            else:
-            
-                print "send to client:", msg
+            prettyPrint(msg, self.debug_format)
         self.out_buffer += self.SCOPE_MESSAGE_STP_1 % (
             getTimestamp(), 
             msg[1], # service

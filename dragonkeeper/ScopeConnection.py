@@ -19,22 +19,6 @@ def encode_varuint(value):
     return out
 
 def decode_varuint(buf):
-    """
-    >>> decode_varuint("")
-    (None, '')
-    >>> decode_varuint(chr(0x00))
-    (0, '')
-    >>> decode_varuint(chr(0xff)+chr(0x01))
-    (255, '')
-    >>> decode_varuint(chr(0xff)+chr(0x01)+chr(0x80))
-    (255, '\\x80')
-    >>> decode_varuint("".join([chr(c) for c in ([0xff]*9 + [0x01])]))
-    (18446744073709551615L, '')
-    >>> decode_varuint("".join([chr(c) for c in ([0xff]*9 + [0x01,0x80])]))
-    (18446744073709551615L, '\\x80')
-    >>> decode_varuint("".join([chr(c) for c in [0x0,0x3,0x0,0x0,0x65,0x73,0x74,0x70,0x5f,0x31]]))
-    (0, '\\x03\\x00\\x00estp_1')
-    """
     if len(buf) == 0:
         return None, buf
     shift = 7
@@ -85,6 +69,8 @@ class ScopeConnection(asyncore.dispatcher):
     STP1_PB_PAYLOAD = encode_varuint( 8 << 3 | 2 )
     STP1_PB_CLIENT_ID = ""
 
+
+
     def __init__(self, conn, addr, context):        
         asyncore.dispatcher.__init__(self, sock=conn)
         self.addr = addr
@@ -99,7 +85,6 @@ class ScopeConnection(asyncore.dispatcher):
         self.stream = codecs.lookup('UTF-16BE').streamreader(self)
         # STP 1 messages
         self.varint = 0
-
         scope.setConnection(self)
 
     # ============================================================
@@ -132,15 +117,14 @@ class ScopeConnection(asyncore.dispatcher):
         self.out_buffer += ("%s %s" % (len(msg), msg)).encode("UTF-16BE")
         self.handle_write()
 
-
     def send_STP0_message_to_client(self, command, msg):
+        """send a message to the client"""
         if connections_waiting:
             connections_waiting.pop(0).sendScopeEventSTP0(
                     (command, msg), self)
         else:
             scope_messages.append((command, msg))
 
-        
     def read_int_STP_0(self):
         """read int STP 0 message"""
         if BLANK in self.in_buffer:
@@ -164,13 +148,6 @@ class ScopeConnection(asyncore.dispatcher):
                     scope.services_enabled[service] = False
             elif command in scope.services_enabled:
                 self.send_STP0_message_to_client(command, msg)
-                """
-                if connections_waiting:
-                    connections_waiting.pop(0).sendScopeEventSTP0(
-                            (command, msg), self)
-                else:
-                    scope_messages.append((command, msg))
-                """
             self.in_buffer = self.in_buffer[self.msg_length:]
             self.msg_length = 0
             self.check_input = self.read_int_STP_0
@@ -192,67 +169,84 @@ class ScopeConnection(asyncore.dispatcher):
     # ============================================================
     # STP 1
     # ============================================================
-
     """
-    message Command
-    {
-      required string service = 1;
-      required uint32 commandID = 2;
-      required uint32 format = 3;
-      optional uint32 tag = 5;
-      required binary payload = 8;
+      ~~~~~~~~~> Handshake
+      ~ ~ ~ ~ ~> Handshake response
+      ---------> Command
+      - - - - -> Response
+      =========> Event
 
-      // either clientID or uuid must be sent
-      optional uint32 clientID = 6;
-      optional string uuid = 7;
-    }
+    The client must then initiate the handshake which also determines the STP
+    version to use, for instance to enable STP version 1::
+
+                  Host               client
+      
+      *services     =================>
+                    <~~~~~~~~~~~~~~~~~  *enable stp-1
+      STP/1\n       ~ ~ ~ ~ ~ ~ ~ ~ ~>
+                    <~~~~~~~~~~~~~~~~~  scope.Connect
+      scope.Connect ~ ~ ~ ~ ~ ~ ~ ~ ~>
+
+    A typical message flow between a client, proxy and host looks like this::
+
+                  Opera               proxy                 client
+      
+      handshake       <~~~~~~~~~~~~~~~~     ~ ~ ~ ~ ~ ~ ~ ~ ~>  handshake
+                                            <-----------------  scope.Connect
+      scope.Connect   <----------------
+                      - - - - - - - - >
+                                            - - - - - - - - ->  scope.Connect
+                                            <-----------------  scope.Enable
+      scope.Enable    <----------------
+                      - - - - - - - - >
+                                            - - - - - - - - ->  scope.Enable
+
+      messages        <-------------------  - - - - - - - - ->  messages
+      events          =======================================>
+                                        ....
+                                            <-----------------  scope.Disconnect
+      scope.Disconnect<----------------
+                      - - - - - - - - >
+                                            - - - - - - - - ->  scope.Disconnect
     """
-
-    def extractID_to_stp1_pb(self, payload):
-        #  '["json","uuid:798551239038509750"]']
+    def extract_id_to_stp1_pb(self, payload):
         id = payload.split(',', 1)[1].strip('"]')
-        # print 'extracted id:', id
         return self.STP1_PB_UUID + encode_varuint(len(id)) + id
  
-
-
     def send_command_STP_1(self, msg):
-        """ to send a message to scope"""
-        service, command, format, tag, payload = msg
+        """ to send a message to scope
+        message TransportMessage
+        {
+            required string service = 1;
+            required uint32 commandID = 2;
+            required uint32 format = 3;
+            optional uint32 status = 4;
+            optional uint32 tag = 5;
+            optional uint32 clientID = 6;
+            optional string uuid = 7;
+            required binary payload = 8;
+        }
+        """
         if self.debug:
-            """
-            if self.debug_format:
-                print "\nsend to scope:", prettyPrint(
-                                (service, command, 0, format, 0, tag, payload))
-            
-            else:
-            """
-            print ("send to scope:\n  " +
-                    "service:"), service, ("\n  " +
-                    "command:"), command, ("\n  " +
-                    "format:"), format,  ("\n  " +
-                    "tag:"), tag, ("\n  " +
-                    "payload:"), payload
-                    
+            prettyPrint(msg, self.debug_format)
         stp_1_msg = "".join([
             self.STP1_PB_TYPE_COMMAND,
-            self.STP1_PB_SERVICE, encode_varuint(len(service)), service,
-            self.STP1_PB_COMMID, encode_varuint(command), 
-            self.STP1_PB_FORMAT, encode_varuint(format), 
-            self.STP1_PB_TAG, encode_varuint(tag), 
-            ( self.STP1_PB_CLIENT_ID or self.extractID_to_stp1_pb(payload) ), 
-            self.STP1_PB_PAYLOAD, encode_varuint(len(payload)), payload
+            self.STP1_PB_SERVICE, encode_varuint(len(msg[1])), msg[1],
+            self.STP1_PB_COMMID, encode_varuint(msg[2]), 
+            self.STP1_PB_FORMAT, encode_varuint(msg[3]), 
+            self.STP1_PB_TAG, encode_varuint(msg[5]), 
+            ( self.STP1_PB_CLIENT_ID or self.extract_id_to_stp1_pb(msg[8]) ), 
+            self.STP1_PB_PAYLOAD, encode_varuint(len(msg[8])), msg[8]
             ])
         self.out_buffer += (
             self.STP1_PB_STP1 + 
             encode_varuint(len(stp_1_msg)) + 
             stp_1_msg
             )
-        # print repr(self.out_buffer)
         self.handle_write()
 
     def setInitializerSTP_1(self):
-        """chnge the read handler to the STP/1 read handler"""
+        """change the read handler to the STP/1 read handler"""
         if self.in_buffer or self.out_buffer:
             raise Exception("read or write buffer is not empty "
                                                 "in setInitializerSTP_1")
@@ -266,18 +260,15 @@ class ScopeConnection(asyncore.dispatcher):
         """read the STP/1 tolken"""
         self.in_buffer += self.recv(BUFFERSIZE)
         if self.in_buffer.startswith("STP/1\n"):
-            # print self.in_buffer[0:6]
             self.in_buffer = self.in_buffer[6:]
             self.send_STP0_message_to_client("", "STP/1\n")
-            # print 'version:', scope.version
-            # TODO this could cause problems, if there is no conection waiting
-            
             self.handle_read = self.handle_read_STP_1
             self.check_input = self.read_stp1_token
             if self.in_buffer:
                 self.check_input()
 
     def read_stp1_token(self):
+        """read the STP\x01 message start token"""
         if self.in_buffer.startswith(self.STP1_PB_STP1):
             self.in_buffer = self.in_buffer[4:]
             self.check_input = self.read_varint
@@ -285,8 +276,7 @@ class ScopeConnection(asyncore.dispatcher):
                 self.check_input()
             
     def read_varint(self):
-        """read varint STP 1 message"""
-
+        """read STP 1 message length as varint"""
         varint, buffer = decode_varuint(self.in_buffer)
         if not varint == None:
             self.varint = varint
@@ -294,39 +284,9 @@ class ScopeConnection(asyncore.dispatcher):
             self.check_input = self.read_binary
             if self.in_buffer:
                 self.check_input()
-        """
-        while self.in_buffer:
-            byte, self.in_buffer = ord(self.in_buffer[0]), self.in_buffer[1:]
-            self.varint += ( byte & 0x7f ) << self.bit_count * 7
-            self.bit_count += 1
-            CHUNKSIZE = 5
-            TYPE_FIELD = 2
-            if not byte & 0x80:
-                if self.parse_state == CHUNKSIZE:
-                    if self.varint:
-                        self.check_input = self.read_binary
-                    else:
-                        self.msg_buffer.append(self.binary_buffer)
-                        self.handleMessageSTP1()
-                else:
-                    if self.parse_state == TYPE_FIELD:
-                        self.msg_buffer.extend(
-                                    [self.varint >> 2, self.varint & 0x3])
-                    else:
-                        self.msg_buffer.append(self.varint)
-                    self.parse_state += 1
-                    self.varint = 0
-                    self.bit_count = 0
-                break
-            if self.bit_count > 8:
-                raise Exception("broken varint")
-        """
-
-        if self.in_buffer:
-            self.check_input()
 
     def read_binary(self):
-        """read length STP 1 message"""
+        """read binary length of STP 1 message"""
         if len(self.in_buffer) >= self.varint:
             stp1_msg = self.in_buffer[0:self.varint]
             self.in_buffer = self.in_buffer[self.varint:]
@@ -339,87 +299,43 @@ class ScopeConnection(asyncore.dispatcher):
     def handle_read_STP_1(self):
         """general read event handler for STP 1"""
         self.in_buffer += self.recv(BUFFERSIZE)
-        # print repr(self.in_buffer)
         self.check_input()
 
     def parse_stp1_msg(self, stp1_msg):
-        """parse a STP 1 message"""
+        """parse a STP 1 message
+        msg_type: 1 = command, 2 = response, 3 = event, 4 = error
+        message TransportMessage
+        {
+            required string service = 1;
+            required uint32 commandID = 2;
+            required uint32 format = 3;
+            optional uint32 status = 4;
+            optional uint32 tag = 5;
+            optional uint32 clientID = 6;
+            optional string uuid = 7;
+            required binary payload = 8;
+        }
+        """
         msg_type, stp1_msg = decode_varuint(stp1_msg)
-        if not msg_type == None:
-            # msg_type: 1 = command, 2 = response, 3 = event, 4 = error
-            """
-            message TransportMessage
-            {
-                required string service = 1;
-                required uint32 commandID = 2;
-                required uint32 format = 3;
-                optional uint32 status = 4;
-                optional uint32 tag = 5;
-                optional uint32 clientID = 6;
-                optional string uuid = 7;
-                required binary payload = 8;
-            }
-            """
+        if msg_type == None:
+            raise Exception("Message type of STP 1 message cannot be parsed")
+        else:
             msg = {
+                0: msg_type,
                 4: 0, 
                 5: 0, 
-                6: 0,
-                8: '', 
-                'type': msg_type
+                8: ''
                 }
             while stp1_msg:
                 tag, value, stp1_msg = read_stp1_msg_part(stp1_msg)
                 msg[tag] = value
-        else:
-            raise Exception("Message type of STP 1 message cannot be parsed") 
-        
-        # for k in msg: print k,':', msg[k]
         if not self.STP1_PB_CLIENT_ID:
             self.STP1_PB_CLIENT_ID = self.STP1_PB_CID + encode_varuint(msg[6])
-
-
-
-        # print msg
-        # TODO? check service enabled
         if connections_waiting:
             connections_waiting.pop(0).sendScopeEventSTP1(msg, self)
         else:
             scope_messages.append(msg)
-        # store hello message
-        """
-            message TransportMessage
-    {
-      required string service = 1;
-      required uint32 commandID = 2;
-      required uint32 format = 3;
-      optional uint32 status = 4;
-      optional uint32 tag = 5;
-      optional uint32 clientID = 6;
-      optional string uuid = 7;
-      required binary payload = 8;
-    }
-    """
-        #print "parse_stp1_msg:", msg
-        """
-        tag, value, msg = read_stp1_msg_part(msg)
-        # TODO? check service enabled
-        if self.msg_buffer[0] == 0 and self.msg_buffer[1] == 1:
-            scope.storeHelloMessage(self.msg_buffer)
-        if connections_waiting:
-            connections_waiting.pop(0).sendScopeEventSTP1(self.msg_buffer, self)
-        else:
-            scope_messages.append(self.msg_buffer)
-        # store hello message
 
-        self.varint = 0
-        # 
-        self.bit_count = 0
-        self.binary_buffer = ""
-        self.msg_buffer = []
-        self.parse_state = 0
-        self.parse_msg_state = ""
-        """
-        
     # ============================================================
     # Implementations of the asyncore.dispatcher class methods 
     # ============================================================
