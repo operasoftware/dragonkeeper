@@ -112,6 +112,13 @@ typeMap = {
     1: "json",
     2: "xml"
     }
+
+msgTypeMap = {
+    1: "command", 
+    2: "response", 
+    3: "event", 
+    4: "error"
+    }
     
 SERVICE_LIST = """<services>%s</services>"""
 SERVICE_ITEM = """<service name="%s"/>"""
@@ -150,6 +157,11 @@ class Scope(object):
 
     def handle_STP1_initializer(self):
         self.version = "stp-1"
+
+    def pushBackSTP1Token(self):
+        self.version = "stp-0"
+        self.connection.send_STP0_message_to_client("", "STP/1\n")
+        
 
     def reset(self):
         self.serviceList = []
@@ -199,7 +211,7 @@ def formatXML(in_string):
         ret = [in_string]
     return "".join(ret)
 
-def prettyPrint(msg, format):
+def prettyPrint(prelude, msg, format):
     """
     message type: 1 = command, 2 = response, 3 = event, 4 = error
     message TransportMessage
@@ -214,14 +226,15 @@ def prettyPrint(msg, format):
         required binary payload = 8;
     }
     """
-    print "send to ", msg[0] == 1 and "host" or "client", ":"
+    print prelude
     if format:
         service = msg[1]
+        print "  message type:", msgTypeMap[msg[0]]
         print "  service:", service
         print "  command:", commandMap[service][msg[2]]
         print "  format:", typeMap[msg[3]]
         if 4 in msg:
-            print "  status:", commandMap[service][msg[4]]
+            print "  status:", statusMap[msg[4]]
 
         print "  cid:", msg[6]
         if 5 in msg:
@@ -378,8 +391,10 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         service = self.arguments[0]
         if scope.services_enabled[service]:
             if service.startswith('stp-'):
-                pass # scope.pushbackHelloMessage()
-            print ">>> service is already enabled", service
+                scope.pushBackSTP1Token()
+                print "push back STP/1 token"
+            else:
+                print ">>> service is already enabled", service
         else:
             scope.sendCommand("*enable %s" % service)
             scope.services_enabled[service] = True
@@ -497,7 +512,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             # workaround, status 204 does not work
             msg[8] = ' '  
         if self.debug:
-            prettyPrint(msg, self.debug_format)
+            prettyPrint("send to client:", msg, self.debug_format)
         self.out_buffer += self.SCOPE_MESSAGE_STP_1 % (
             getTimestamp(), 
             msg[1], # service

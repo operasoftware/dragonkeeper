@@ -228,7 +228,7 @@ class ScopeConnection(asyncore.dispatcher):
         }
         """
         if self.debug:
-            prettyPrint(msg, self.debug_format)
+            prettyPrint("send to host:", msg, self.debug_format)
         stp_1_msg = "".join([
             self.STP1_PB_TYPE_COMMAND,
             self.STP1_PB_SERVICE, encode_varuint(len(msg[1])), msg[1],
