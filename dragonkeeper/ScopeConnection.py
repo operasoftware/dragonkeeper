@@ -137,19 +137,23 @@ class ScopeConnection(asyncore.dispatcher):
         """read length STP 0 message"""
         if len(self.in_buffer) >= self.msg_length:
             command, msg = self.in_buffer[0:self.msg_length].split(BLANK, 1)
+            self.in_buffer = self.in_buffer[self.msg_length:]
+            self.msg_length = 0
             msg = msg.encode("UTF-8")
             command = command.encode("UTF-8")
             if command == "*services":
                 services = msg.split(',')
                 print "services available:\n ", "\n  ".join(services)
                 scope.setServiceList(services)
+                if 'stp-1' in services:
+                    self.setInitializerSTP_1()
+                    self.send_command_STP_0('*enable stp-1')
                 for service in services:
                     scope.commands_waiting[service] = []
                     scope.services_enabled[service] = False
             elif command in scope.services_enabled:
                 self.send_STP0_message_to_client(command, msg)
-            self.in_buffer = self.in_buffer[self.msg_length:]
-            self.msg_length = 0
+
             self.check_input = self.read_int_STP_0
             self.check_input()
 
@@ -261,7 +265,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.in_buffer += self.recv(BUFFERSIZE)
         if self.in_buffer.startswith("STP/1\n"):
             self.in_buffer = self.in_buffer[6:]
-            self.send_STP0_message_to_client("", "STP/1\n")
+            scope.setSTPVersion('stp-1')
             self.handle_read = self.handle_read_STP_1
             self.check_input = self.read_stp1_token
             if self.in_buffer:

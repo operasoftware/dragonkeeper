@@ -35,6 +35,7 @@ from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, getTime
 connections_waiting = []
 scope_messages = []
 
+
 commandMap = {
     "console-logger": {
         0: "ConsoleMessage",
@@ -50,6 +51,7 @@ commandMap = {
         6: "Disable",
         7: "Info",
         8: "Quit",
+        10: "HostInfo",
         0: "onServices",
         1: "onQuit",
         2: "onConnectionLost",
@@ -146,22 +148,18 @@ class Scope(object):
         self.serviceList = list
 
     # TODO clean up naming
+    
     def setSTPVersion(self, version):
         # self.version = version
         # version gets set as soon as the STP/1 token is received
         if version == "stp-1":
-            self.connection.setInitializerSTP_1()
+            self.version = "stp-1"
             self.sendCommand = self.connection.send_command_STP_1
         else:
             print "This stp version is not jet supported"
+    
 
-    def handle_STP1_initializer(self):
-        self.version = "stp-1"
 
-    def pushBackSTP1Token(self):
-        self.version = "stp-0"
-        self.connection.send_STP0_message_to_client("", "STP/1\n")
-        
 
     def reset(self):
         self.serviceList = []
@@ -390,11 +388,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         """to enable a scope service"""
         service = self.arguments[0]
         if scope.services_enabled[service]:
-            if service.startswith('stp-'):
-                scope.pushBackSTP1Token()
-                print "push back STP/1 token"
-            else:
-                print ">>> service is already enabled", service
+            print ">>> service is already enabled", service
         else:
             scope.sendCommand("*enable %s" % service)
             scope.services_enabled[service] = True
@@ -482,10 +476,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             service, 
             len(payload), 
             payload
-        )
-        if payload == "STP/1\n":
-            scope.handle_STP1_initializer()
-            
+        )            
         self.timeout = 0
         if not sender == self:
             self.handle_write()
