@@ -144,7 +144,7 @@ class ScopeConnection(asyncore.dispatcher):
             if command == "*services":
                 services = msg.split(',')
                 print "services available:\n ", "\n  ".join(services)
-                scope.setServiceList(services)
+                self._services = services
                 if 'stp-1' in services:
                     self.setInitializerSTP_1()
                     self.send_command_STP_0('*enable stp-1')
@@ -265,6 +265,8 @@ class ScopeConnection(asyncore.dispatcher):
         self.in_buffer += self.recv(BUFFERSIZE)
         if self.in_buffer.startswith("STP/1\n"):
             self.in_buffer = self.in_buffer[6:]
+            scope.setServiceList(self._services)
+            del self._services
             scope.setSTPVersion('stp-1')
             self.handle_read = self.handle_read_STP_1
             self.check_input = self.read_stp1_token
