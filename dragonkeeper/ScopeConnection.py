@@ -148,6 +148,9 @@ class ScopeConnection(asyncore.dispatcher):
                 if 'stp-1' in services:
                     self.setInitializerSTP_1()
                     self.send_command_STP_0('*enable stp-1')
+                else: # use stp-0
+                     scope.setServiceList(services)
+                    
                 for service in services:
                     scope.commands_waiting[service] = []
                     scope.services_enabled[service] = False
