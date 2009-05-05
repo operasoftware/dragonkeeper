@@ -239,7 +239,8 @@ class ScopeConnection(asyncore.dispatcher):
             self.STP1_PB_COMMID, encode_varuint(msg[2]), 
             self.STP1_PB_FORMAT, encode_varuint(msg[3]), 
             self.STP1_PB_TAG, encode_varuint(msg[5]), 
-            ( self.STP1_PB_CLIENT_ID or self.extract_id_to_stp1_pb(msg[8]) ), 
+            ( msg[6] and ( self.STP1_PB_CID + encode_varuint(msg[6]) ) or 
+                                        self.extract_id_to_stp1_pb(msg[8]) ), 
             self.STP1_PB_PAYLOAD, encode_varuint(len(msg[8])), msg[8]
             ])
         self.out_buffer += (
@@ -335,8 +336,6 @@ class ScopeConnection(asyncore.dispatcher):
             while stp1_msg:
                 tag, value, stp1_msg = read_stp1_msg_part(stp1_msg)
                 msg[tag] = value
-        if not self.STP1_PB_CLIENT_ID:
-            self.STP1_PB_CLIENT_ID = self.STP1_PB_CID + encode_varuint(msg[6])
         if connections_waiting:
             connections_waiting.pop(0).sendScopeEventSTP1(msg, self)
         else:
