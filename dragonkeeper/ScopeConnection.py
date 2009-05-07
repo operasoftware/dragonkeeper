@@ -58,7 +58,6 @@ class ScopeConnection(asyncore.dispatcher):
     """To handle the socket connection to scope."""
     STP1_PB_STP1 = "STP\x01"
     STP1_PB_TYPE_COMMAND = encode_varuint(1)
-
     STP1_PB_SERVICE = encode_varuint( 1 << 3 | 2 )
     STP1_PB_COMMID = encode_varuint( 2 << 3 | 0 )
     STP1_PB_FORMAT = encode_varuint( 3 << 3 | 0 )
@@ -67,10 +66,7 @@ class ScopeConnection(asyncore.dispatcher):
     STP1_PB_CID = encode_varuint( 6 << 3 | 0 )
     STP1_PB_UUID = encode_varuint( 7 << 3 | 2 )
     STP1_PB_PAYLOAD = encode_varuint( 8 << 3 | 2 )
-    STP1_PB_CLIENT_ID = ""
-
-
-
+    
     def __init__(self, conn, addr, context):        
         asyncore.dispatcher.__init__(self, sock=conn)
         self.addr = addr
@@ -84,6 +80,8 @@ class ScopeConnection(asyncore.dispatcher):
         self.msg_length = 0
         self.stream = codecs.lookup('UTF-16BE').streamreader(self)
         # STP 1 messages
+        self.STP1_PB_CLIENT_ID = ""
+
         self.varint = 0
         scope.setConnection(self)
 
@@ -144,13 +142,10 @@ class ScopeConnection(asyncore.dispatcher):
             if command == "*services":
                 services = msg.split(',')
                 print "services available:\n ", "\n  ".join(services)
-                self._services = services
                 if 'stp-1' in services:
                     self.setInitializerSTP_1()
                     self.send_command_STP_0('*enable stp-1')
-                else: # use stp-0
-                     scope.setServiceList(services)
-                    
+                scope.setServiceList(services) 
                 for service in services:
                     scope.commands_waiting[service] = []
                     scope.services_enabled[service] = False
@@ -176,50 +171,64 @@ class ScopeConnection(asyncore.dispatcher):
     # ============================================================
     # STP 1
     # ============================================================
-    """
-      ~~~~~~~~~> Handshake
-      ~ ~ ~ ~ ~> Handshake response
-      ---------> Command
-      - - - - -> Response
-      =========> Event
+    # Initialisation of STP 1
+    # see also scope-transport-protocol.txt and scope-stp1-services.txt
+    #
+    # If stp-1 is in the service list it will get enabled on receiving 
+    # the service list in this class ( the stp 1handshake ).
+    # The command "services" in the http interface ( HTTPScopeInterface )
+    # is treated as (re)load event of the client. That event triggers the 
+    # Connect command ( which also resets any state for that client 
+    # in the host ), executed in the Scope class. If the command succeeds 
+    # the service list is returnd to the client. From this point on the control
+    # is up to the client.
+    #
+    #  ~~~~~~~~~> Handshake
+    #  ~ ~ ~ ~ ~> Handshake response
+    #  ---------> Command
+    #  - - - - -> Response
+    #  =========> Event
+    #
+    # The client must then initiate the handshake which also determines the STP
+    # version to use, for instance to enable STP version 1::
+    #
+    #               Host               client
+    #   
+    #   *services     =================>
+    #                 <~~~~~~~~~~~~~~~~~  *enable stp-1
+    #   STP/1\n       ~ ~ ~ ~ ~ ~ ~ ~ ~>
+    #                 <~~~~~~~~~~~~~~~~~  scope.Connect
+    #   scope.Connect ~ ~ ~ ~ ~ ~ ~ ~ ~>
+    #
+    # A typical message flow between a client, proxy and host looks like this::
+    #
+    #               Opera               proxy                 client
+    #   
+    #   handshake       <~~~~~~~~~~~~~~~~     ~ ~ ~ ~ ~ ~ ~ ~ ~>  handshake
+    #                                         <-----------------  scope.Connect
+    #   scope.Connect   <----------------
+    #                   - - - - - - - - >
+    #                                         - - - - - - - - ->  scope.Connect
+    #                                         <-----------------  scope.Enable
+    #   scope.Enable    <----------------
+    #                   - - - - - - - - >
+    #                                         - - - - - - - - ->  scope.Enable
+    #
+    #   messages        <-------------------  - - - - - - - - ->  messages
+    #   events          =======================================>
+    #                                     ....
+    #                                         <-----------------  scope.Disconnect
+    #   scope.Disconnect<----------------
+    #                   - - - - - - - - >
+    #                                         - - - - - - - - ->  scope.Disconnect
+    #
+    
+    def setCID(self, id):
+        self.STP1_PB_CLIENT_ID = self.STP1_PB_CID + encode_varuint(id)
 
-    The client must then initiate the handshake which also determines the STP
-    version to use, for instance to enable STP version 1::
+    def clearCID(self):
+        self.STP1_PB_CLIENT_ID = ""
 
-                  Host               client
-      
-      *services     =================>
-                    <~~~~~~~~~~~~~~~~~  *enable stp-1
-      STP/1\n       ~ ~ ~ ~ ~ ~ ~ ~ ~>
-                    <~~~~~~~~~~~~~~~~~  scope.Connect
-      scope.Connect ~ ~ ~ ~ ~ ~ ~ ~ ~>
-
-    A typical message flow between a client, proxy and host looks like this::
-
-                  Opera               proxy                 client
-      
-      handshake       <~~~~~~~~~~~~~~~~     ~ ~ ~ ~ ~ ~ ~ ~ ~>  handshake
-                                            <-----------------  scope.Connect
-      scope.Connect   <----------------
-                      - - - - - - - - >
-                                            - - - - - - - - ->  scope.Connect
-                                            <-----------------  scope.Enable
-      scope.Enable    <----------------
-                      - - - - - - - - >
-                                            - - - - - - - - ->  scope.Enable
-
-      messages        <-------------------  - - - - - - - - ->  messages
-      events          =======================================>
-                                        ....
-                                            <-----------------  scope.Disconnect
-      scope.Disconnect<----------------
-                      - - - - - - - - >
-                                            - - - - - - - - ->  scope.Disconnect
-    """
-    def extract_id_to_stp1_pb(self, payload):
-        id = payload.split(',', 1)[1].strip('"]')
-        return self.STP1_PB_UUID + encode_varuint(len(id)) + id
- 
     def send_command_STP_1(self, msg):
         """ to send a message to scope
         message TransportMessage
@@ -242,8 +251,8 @@ class ScopeConnection(asyncore.dispatcher):
             self.STP1_PB_COMMID, encode_varuint(msg[2]), 
             self.STP1_PB_FORMAT, encode_varuint(msg[3]), 
             self.STP1_PB_TAG, encode_varuint(msg[5]), 
-            ( msg[6] and ( self.STP1_PB_CID + encode_varuint(msg[6]) ) or 
-                                        self.extract_id_to_stp1_pb(msg[8]) ), 
+            self.STP1_PB_CLIENT_ID or 
+                    self.STP1_PB_UUID + encode_varuint(len(msg[7])) + msg[7], 
             self.STP1_PB_PAYLOAD, encode_varuint(len(msg[8])), msg[8]
             ])
         self.out_buffer += (
@@ -269,11 +278,10 @@ class ScopeConnection(asyncore.dispatcher):
         self.in_buffer += self.recv(BUFFERSIZE)
         if self.in_buffer.startswith("STP/1\n"):
             self.in_buffer = self.in_buffer[6:]
-            scope.setServiceList(self._services)
-            del self._services
             scope.setSTPVersion('stp-1')
             self.handle_read = self.handle_read_STP_1
             self.check_input = self.read_stp1_token
+            self.handle_stp1_msg = self.handle_stp1_msg_default
             if self.in_buffer:
                 self.check_input()
 
@@ -337,8 +345,11 @@ class ScopeConnection(asyncore.dispatcher):
                 8: ''
                 }
             while stp1_msg:
-                tag, value, stp1_msg = read_stp1_msg_part(stp1_msg)
-                msg[tag] = value
+                key, value, stp1_msg = read_stp1_msg_part(stp1_msg)
+                msg[key] = value
+        self.handle_stp1_msg(msg)
+
+    def handle_stp1_msg_default(self, msg):
         if connections_waiting:
             connections_waiting.pop(0).sendScopeEventSTP1(msg, self)
         else:

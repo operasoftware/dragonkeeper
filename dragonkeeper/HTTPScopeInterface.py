@@ -27,6 +27,7 @@ It is only for one client and one host.
 import re
 import HTTPConnection
 from time import time
+from random import randint
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, getTimestamp
 
 
@@ -136,6 +137,7 @@ class Scope(object):
         self.services_enabled = {}
         self.connection = None
         self.version = 'stp-0'
+        self.uuid = str(randint(100, 10000000) + int(time() * 1000))
 
     def empty_call(self, msg):
         pass
@@ -147,6 +149,54 @@ class Scope(object):
     def setServiceList(self, list):
         self.serviceList = list
 
+    def returnServiceList(self, http_connection):
+        if self.version == 'stp-0':
+            http_connection.returnServiceList(self.serviceList)
+        elif self.version == 'stp-1':
+            if self.connection:
+                self.connection.clearCID()  
+                self.connection.handle_stp1_msg = self.handle_connect_callback
+                self.http_connection = http_connection
+                """ 
+                message TransportMessage
+                {
+                    required string service = 1;
+                    required uint32 commandID = 2;
+                    required uint32 format = 3;
+                    optional uint32 status = 4;
+                    optional uint32 tag = 5;
+                    optional uint32 clientID = 6;
+                    optional string uuid = 7;
+                    required binary payload = 8;
+                }
+                """
+                self.connection.send_command_STP_1({
+                        0: 1,
+                        1: "scope",
+                        2: 3,
+                        3: 1,
+                        5: 0,
+                        7: self.uuid,
+                        8: '["json","%s"]' % self.uuid
+                    })
+            else:
+                http_connection.returnServiceList(self.serviceList)
+            
+
+        else:
+            print "not supported stp version in scope.returnServiceList(connection)"
+        
+    def handle_connect_callback(self, msg):
+        if self.connection.debug:
+            prettyPrint("send to client:", msg, self.connection.debug_format)
+        if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:
+            self.connection.setCID(int(msg[8].strip('[]')))
+            self.connection.handle_stp1_msg = self.connection.handle_stp1_msg_default
+            self.http_connection.returnServiceList(self.serviceList)
+            del self.http_connection
+        else:
+            print "conection to host failed in scope.handle_connect_callback"
+       
     # TODO clean up naming
     
     def setSTPVersion(self, version):
@@ -157,16 +207,13 @@ class Scope(object):
             self.sendCommand = self.connection.send_command_STP_1
         else:
             print "This stp version is not jet supported"
-    
-
-
 
     def reset(self):
         self.serviceList = []
         self.sendCommand = self.empty_call  
         self.commands_waiting = {}
         self.services_enabled = {}
- 
+
 scope = Scope()
 
 def formatXML(in_string):
@@ -233,8 +280,10 @@ def prettyPrint(prelude, msg, format):
         print "  format:", typeMap[msg[3]]
         if 4 in msg:
             print "  status:", statusMap[msg[4]]
-
-        print "  cid:", msg[6]
+        if 6 in msg:
+            print "  cid:", msg[6]
+        if 7 in msg:
+            print "  uuid:", msg[7]
         if 5 in msg:
             print "  tag:", msg[5]
         print "  payload:", msg[8], '\n'
@@ -373,16 +422,19 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         """to get the service list"""
         if connections_waiting:
             print ">>> failed, connections_waiting is not empty"
+        scope.returnServiceList(self)
+        self.timeout = 0
+
+    def returnServiceList(self, serviceList):
         content = SERVICE_LIST % "".join (
             [SERVICE_ITEM % service.encode('utf-8') 
-            for service in scope.serviceList] 
+            for service in serviceList] 
             )
         self.out_buffer += self.RESPONSE_SERVICELIST % ( 
             getTimestamp(), 
             len(content), 
             content
             )
-        self.timeout = 0
 
     def enable(self):
         """to enable a scope service"""
@@ -436,15 +488,14 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
                 optional string uuid = 7;
                 required binary payload = 8;
             }
-            /send-command/" + service + "/" + command_id + "/1/" + tag +"/" + _cid
+            /send-command/" + service + "/" + command_id + "/" + tag 
             """
             scope.sendCommand({
                     0: 1, # message type
                     1: args[0],
                     2: int(args[1]),
-                    3: int(args[2]),
-                    5: int(args[3]),
-                    6: int(args[4]),
+                    3: 1,
+                    5: int(args[2]),
                     8: self.raw_post_data
                 })
         else:
