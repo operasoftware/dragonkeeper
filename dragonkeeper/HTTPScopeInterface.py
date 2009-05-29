@@ -66,6 +66,11 @@ commandMap = {
         2: "onWindowClosed",
         4: "onWindowActivated",
         },
+    "exec": {
+        1: "Exec",
+        2: "GetActionInfoList",
+        3: "SetupScreenWatcher",
+        },
     "ecmascript-debugger": {
         1: "ListRuntimes",
         2: "ContinueThread",
@@ -94,6 +99,7 @@ commandMap = {
         19: "onThreadStoppedAt",
         20: "onHandleEvent",
         21: "onObjectSelected",
+        27: "onParseError",
         },
     }
 
