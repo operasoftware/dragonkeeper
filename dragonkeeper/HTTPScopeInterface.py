@@ -282,7 +282,7 @@ def prettyPrint(prelude, msg, format):
         service = msg[1]
         print "  message type:", msgTypeMap[msg[0]]
         print "  service:", service
-        print "  command:", commandMap[service][msg[2]]
+        print "  command:", commandMap.get(service, {}).get(msg[2], '<id: %d>' % msg[2])
         print "  format:", typeMap[msg[3]]
         if 4 in msg:
             print "  status:", statusMap[msg[4]]
