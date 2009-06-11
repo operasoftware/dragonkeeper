@@ -506,7 +506,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
                 })
         else:
             service = self.arguments[0]
-            if not raw_data.startswith("<?xml"):
+            if not raw_data.startswith("<?xml") and not raw_data.startswith("STP/1"):
                 raw_data = XML_PRELUDE % raw_data  
             msg = "%s %s" % (service, raw_data.decode('UTF-8'))
             if scope.services_enabled[service]:
