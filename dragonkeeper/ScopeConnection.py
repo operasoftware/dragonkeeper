@@ -72,6 +72,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.addr = addr
         self.debug = context.debug
         self.debug_format = context.format
+        self.force_stp_0 = context.force_stp_0
         # STP 0 meassages
         self.in_buffer = u""
         self.out_buffer = ""
@@ -142,7 +143,7 @@ class ScopeConnection(asyncore.dispatcher):
             if command == "*services":
                 services = msg.split(',')
                 print "services available:\n ", "\n  ".join(services)
-                if 'stp-1' in services:
+                if not self.force_stp_0 and 'stp-1' in services:
                     self.setInitializerSTP_1()
                     self.send_command_STP_0('*enable stp-1')
                 scope.setServiceList(services) 

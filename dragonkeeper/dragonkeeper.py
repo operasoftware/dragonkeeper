@@ -14,7 +14,8 @@ APP_DEFAULTS = {
     "proxy_port": 7001,
     "root": '.',
     "debug": False,
-    "format": False
+    "format": False,
+    "force_stp_0": False
 }
 
 DEFAULT_TYPES = {
@@ -23,7 +24,8 @@ DEFAULT_TYPES = {
     "proxy_port": int,
     "root": str,
     "debug": bool,
-    "format": bool
+    "format": bool,
+    "force_stp_0": bool
 }
 
 USAGE = """%prog [options]
@@ -127,6 +129,12 @@ def _parse_options():
         action="store_true",
         default=False,
         help = "Print a default dragonkeeper.ini and exit"
+        )
+    parser.add_option(
+        "--force-stp-0",
+        action = "store_true", 
+        dest = "force_stp_0", 
+        help = "force stp 0 communication"
         )
     options, args = parser.parse_args()
 
