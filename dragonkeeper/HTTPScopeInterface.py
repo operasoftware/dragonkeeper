@@ -224,7 +224,7 @@ scope = Scope()
 
 def formatXML(in_string):
     """To pretty print STP 0 messages"""
-    if "<" in in_string:
+    if in_string.startswith("<"):
         in_string = re.sub(r"<\?[^>]*>", "", in_string)
         ret = []
         indent_count = 0
