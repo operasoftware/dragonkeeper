@@ -39,10 +39,10 @@ scope_messages = []
 
 commandMap = {
     "console-logger": {
-        0: "ConsoleMessage",
+        1: "onConsoleMessage",
         },
     "http-logger": {
-        0: "onRequest",
+        1: "onRequest",
         2: "onResponse",
         },
     "scope": {
@@ -60,16 +60,17 @@ commandMap = {
         },
     "window-manager": {
         1: "GetActiveWindow",
-        3: "ListWindows",
-        5: "ModifyFilter",
-        0: "onWindowUpdated",
-        2: "onWindowClosed",
-        4: "onWindowActivated",
+        2: "ListWindows",
+        3: "ModifyFilter",
+        4: "onWindowUpdated",
+        5: "onWindowClosed",
+        6: "onWindowActivated",
         },
     "exec": {
         1: "Exec",
         2: "GetActionInfoList",
         3: "SetupScreenWatcher",
+        4: "onScreenWatcherEvent",
         },
     "ecmascript-debugger": {
         1: "ListRuntimes",
@@ -99,7 +100,7 @@ commandMap = {
         19: "onThreadStoppedAt",
         20: "onHandleEvent",
         21: "onObjectSelected",
-        27: "onParseError",
+        28: "onParseError",
         },
     }
 
