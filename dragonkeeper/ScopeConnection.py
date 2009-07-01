@@ -72,6 +72,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.addr = addr
         self.debug = context.debug
         self.debug_format = context.format
+        self.debug_format_payload = context.format_payload
         self.force_stp_0 = context.force_stp_0
         # STP 0 meassages
         self.in_buffer = u""
@@ -245,7 +246,8 @@ class ScopeConnection(asyncore.dispatcher):
         }
         """
         if self.debug:
-            prettyPrint("send to host:", msg, self.debug_format)
+            prettyPrint("send to host:", msg, 
+                            self.debug_format, self.debug_format_payload)
         stp_1_msg = "".join([
             self.STP1_PB_TYPE_COMMAND,
             self.STP1_PB_SERVICE, encode_varuint(len(msg[1])), msg[1],

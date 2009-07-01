@@ -15,7 +15,8 @@ APP_DEFAULTS = {
     "root": '.',
     "debug": False,
     "format": False,
-    "force_stp_0": False
+    "force_stp_0": False,
+    "format_payload": False
 }
 
 DEFAULT_TYPES = {
@@ -25,7 +26,8 @@ DEFAULT_TYPES = {
     "root": str,
     "debug": bool,
     "format": bool,
-    "force_stp_0": bool
+    "force_stp_0": bool,
+    "format_payload": bool
 }
 
 USAGE = """%prog [options]
@@ -101,6 +103,12 @@ def _parse_options():
         help = "pretty print message flow"
         )
     parser.add_option(
+        "-j", "--format-payload",
+        action="store_true", 
+        dest = "format_payload", 
+        help = "pretty print the message payload. can be very expensive"
+        )
+    parser.add_option(
         "-r", "--root", 
         dest = "root", 
         help = "the root directory of the server; default %s" % (
@@ -134,9 +142,10 @@ def _parse_options():
         "--force-stp-0",
         action = "store_true", 
         dest = "force_stp_0", 
-        help = "force stp 0 communication"
+        help = "force stp 0 protocol"
         )
     options, args = parser.parse_args()
+
 
     if options.make_ini:
         _print_config()

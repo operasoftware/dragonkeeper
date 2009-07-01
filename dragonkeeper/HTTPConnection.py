@@ -25,8 +25,7 @@ class HTTPConnection(asyncore.dispatcher):
         # Timeout acts also as flag to signal 
         # a connection which still waits for a response 
         self.timeout = 0
-        self.debug = context.debug
-        self.debug_format = context.format
+
 
     def read_headers(self):
         if 2*CRLF in self.in_buffer:

@@ -30,106 +30,14 @@ from time import time
 from random import randint
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, getTimestamp
 
+from command_map import *
+
 
 
 # the two queues
 connections_waiting = []
 scope_messages = []
 
-
-commandMap = {
-    "console-logger": {
-        1: "onConsoleMessage",
-        },
-    "http-logger": {
-        1: "onRequest",
-        2: "onResponse",
-        },
-    "scope": {
-        3: "Connect",
-        4: "Disconnect",
-        5: "Enable",
-        6: "Disable",
-        7: "Info",
-        8: "Quit",
-        10: "HostInfo",
-        0: "onServices",
-        1: "onQuit",
-        2: "onConnectionLost",
-        9: "onError",
-        },
-    "window-manager": {
-        1: "GetActiveWindow",
-        2: "ListWindows",
-        3: "ModifyFilter",
-        4: "onWindowUpdated",
-        5: "onWindowClosed",
-        6: "onWindowActivated",
-        },
-    "exec": {
-        1: "Exec",
-        2: "GetActionInfoList",
-        3: "SetupScreenWatcher",
-        4: "onScreenWatcherEvent",
-        },
-    "ecmascript-debugger": {
-        1: "ListRuntimes",
-        2: "ContinueThread",
-        3: "Eval",
-        4: "ExamineObjects",
-        5: "SpotlightObject",
-        6: "AddBreakpoint",
-        7: "RemoveBreakpoint",
-        8: "AddEventHandler",
-        9: "RemoveEventHandler",
-        10: "SetConfiguration",
-        11: "GetBacktrace",
-        12: "Break",
-        13: "InspectDom",
-        22: "CssGetIndexMap",
-        23: "CssGetAllStylesheets",
-        24: "CssGetStylesheet",
-        25: "CssGetStyleDeclarations",
-        26: "GetSelectedObject",
-        27: "SpotlightObjects",
-        14: "onRuntimeStarted",
-        15: "onRuntimeStopped",
-        16: "onNewScript",
-        17: "onThreadStarted",
-        18: "onThreadFinished",
-        19: "onThreadStoppedAt",
-        20: "onHandleEvent",
-        21: "onObjectSelected",
-        28: "onParseError",
-        },
-    }
-
-statusMap = {
-    0: "OK",
-    1: "Conflict",
-    2: "Unsupported Type",
-    3: "Bad Request",
-    4: "Internal Error",
-    5: "Command Not Found",
-    6: "Service Not Found",
-    7: "Out Of Memory",
-    8: "Service Not Enabled",
-    9: "Service Already Enabled",
-    }
-
-typeMap = {
-    0: "protocol-buffer",
-    1: "json",
-    2: "xml"
-    }
-
-msgTypeMap = {
-    1: "command", 
-    2: "response", 
-    3: "event", 
-    4: "error"
-    }
-    
 SERVICE_LIST = """<services>%s</services>"""
 SERVICE_ITEM = """<service name="%s"/>"""
 XML_PRELUDE = """<?xml version="1.0"?>%s"""
@@ -195,7 +103,8 @@ class Scope(object):
         
     def handle_connect_callback(self, msg):
         if self.connection.debug:
-            prettyPrint("send to client:", msg, self.connection.debug_format)
+            prettyPrint("send to client:", msg, 
+             self.connection.debug_format, self.connection.debug_format_payload)
         if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:
             self.connection.setCID(int(msg[8].strip('[]')))
             self.connection.handle_stp1_msg = self.connection.handle_stp1_msg_default
@@ -263,7 +172,42 @@ def formatXML(in_string):
         ret = [in_string]
     return "".join(ret)
 
-def prettyPrint(prelude, msg, format):
+def prettyPrintPayloadItem(indent, name, definition, item):
+    INDENT = "  "
+    return "%s%s: %s" % ( 
+          indent * INDENT, 
+          name,
+          "message" in definition and \
+            "\n" + prettyPrintPayload(item, 
+                definition["message"], indent=indent+2) or \
+            ( item == None and "null" or isinstance(item, str) and "\"%s\"" % item or item )
+      ) 
+
+def prettyPrintPayload(payload, definitions, indent=2):
+    INDENT = "  "
+    ret = []
+    type_str = type("")
+    if definitions:
+        for item, definition in zip(payload, definitions):
+            if definition["q"] == "repeated":
+                ret.append("%s%s:" % (indent * INDENT, definition['name']))
+                for sub_item in item:
+                    ret.append(prettyPrintPayloadItem(
+                            indent +1,
+                            definition['name'].replace("List", ""),
+                            definition,
+                            sub_item))
+            else:
+                ret.append(prettyPrintPayloadItem(
+                        indent,
+                        definition['name'],
+                        definition,
+                        item))
+        return "\n".join(ret)
+    else:
+        return ""
+
+def prettyPrint(prelude, msg, format, format_payload):
     """
     message type: 1 = command, 2 = response, 3 = event, 4 = error
     message TransportMessage
@@ -281,9 +225,11 @@ def prettyPrint(prelude, msg, format):
     print prelude
     if format:
         service = msg[1]
+        command = commandMap.get(service, {}).get(msg[2], None)
         print "  message type:", msgTypeMap[msg[0]]
         print "  service:", service
-        print "  command:", commandMap.get(service, {}).get(msg[2], '<id: %d>' % msg[2])
+        print "  command:", command and \
+                        command.get("name", None) or '<id: %d>' % msg[2]
         print "  format:", typeMap[msg[3]]
         if 4 in msg:
             print "  status:", statusMap[msg[4]]
@@ -293,7 +239,16 @@ def prettyPrint(prelude, msg, format):
             print "  uuid:", msg[7]
         if 5 in msg:
             print "  tag:", msg[5]
-        print "  payload:", msg[8], '\n'
+        if format_payload:
+            try:
+                # a bit a hack
+                payload = eval(msg[8].replace(",null", ",None"))
+                print "  payload:"
+                print prettyPrintPayload(payload, command.get(msg[0], None)), '\n'
+            except Exception, e:
+                print "\n".join([">>>>>>>", e, msg[8]])
+        else:
+            print "  payload:", msg[8], "\n"
     else:
         print msg
 
@@ -418,8 +373,11 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     )
     """
 
-    def __init__(self, conn, addr, context):        
+    def __init__(self, conn, addr, context):  
         HTTPConnection.HTTPConnection.__init__(self, conn, addr, context)
+        self.debug = context.debug
+        self.debug_format = context.format
+        self.debug_format_payload = context.format_payload
 
     # ============================================================
     # GET commands ( first part of the path )
@@ -561,7 +519,8 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             # workaround, status 204 does not work
             msg[8] = ' '  
         if self.debug:
-            prettyPrint("send to client:", msg, self.debug_format)
+            prettyPrint("send to client:", msg, 
+                                self.debug_format, self.debug_format_payload)
         self.out_buffer += self.SCOPE_MESSAGE_STP_1 % (
             getTimestamp(), 
             msg[1], # service
