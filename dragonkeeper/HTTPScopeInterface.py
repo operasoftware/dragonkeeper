@@ -27,7 +27,6 @@ It is only for one client and one host.
 import re
 import HTTPConnection
 from time import time
-from random import randint
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, getTimestamp
 
 from command_map import *
@@ -52,7 +51,6 @@ class Scope(object):
         self.services_enabled = {}
         self.connection = None
         self.version = 'stp-0'
-        self.uuid = str(randint(100, 10000000) + int(time() * 1000))
         self.http_connection = None
 
     def empty_call(self, msg):

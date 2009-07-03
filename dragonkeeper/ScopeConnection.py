@@ -1,6 +1,8 @@
 import socket
 import asyncore
 import codecs
+from time import time
+from random import randint
 from common import BLANK, BUFFERSIZE
 from HTTPScopeInterface import connections_waiting, scope_messages, scope
 from HTTPScopeInterface import formatXML, prettyPrint
@@ -83,6 +85,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.stream = codecs.lookup('UTF-16BE').streamreader(self)
         # STP 1 messages
         self.connect_client_callback = None
+        self.uuid = str(randint(100, 10000000) + int(time() * 1000))
         self.STP1_PB_CLIENT_ID = ""
 
         self.varint = 0
