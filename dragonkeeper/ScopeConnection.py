@@ -82,6 +82,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.msg_length = 0
         self.stream = codecs.lookup('UTF-16BE').streamreader(self)
         # STP 1 messages
+        self.connect_client_callback = None
         self.STP1_PB_CLIENT_ID = ""
 
         self.varint = 0
@@ -287,6 +288,46 @@ class ScopeConnection(asyncore.dispatcher):
             self.handle_stp1_msg = self.handle_stp1_msg_default
             if self.in_buffer:
                 self.check_input()
+
+    def connect_client(self, callback):
+        self.connect_client_callback = callback
+        self.clearCID()  
+        self.handle_stp1_msg = self.handle_connect_client
+        """ 
+        message TransportMessage
+        {
+            required string service = 1;
+            required uint32 commandID = 2;
+            required uint32 format = 3;
+            optional uint32 status = 4;
+            optional uint32 tag = 5;
+            optional uint32 clientID = 6;
+            optional string uuid = 7;
+            required binary payload = 8;
+        }
+        """
+        self.send_command_STP_1({
+                0: 1,
+                1: "scope",
+                2: 3,
+                3: 1,
+                5: 0,
+                7: self.uuid,
+                8: '["json","%s"]' % self.uuid
+            })
+
+    def handle_connect_client(self, msg):
+        if self.debug:
+            prettyPrint("send to client:", msg, 
+                            self.debug_format, self.debug_format_payload)
+        if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:
+            self.setCID(int(msg[8].strip('[]')))
+            self.handle_stp1_msg = self.handle_stp1_msg_default
+            self.connect_client_callback()
+            self.connect_client_callback = None
+
+        else:
+            print "conection to host failed in scope.handle_connect_callback"
 
     def read_stp1_token(self):
         """read the STP\x01 message start token"""

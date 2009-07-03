@@ -53,6 +53,7 @@ class Scope(object):
         self.connection = None
         self.version = 'stp-0'
         self.uuid = str(randint(100, 10000000) + int(time() * 1000))
+        self.http_connection = None
 
     def empty_call(self, msg):
         pass
@@ -69,49 +70,16 @@ class Scope(object):
             http_connection.returnServiceList(self.serviceList)
         elif self.version == 'stp-1':
             if self.connection:
-                self.connection.clearCID()  
-                self.connection.handle_stp1_msg = self.handle_connect_callback
                 self.http_connection = http_connection
-                """ 
-                message TransportMessage
-                {
-                    required string service = 1;
-                    required uint32 commandID = 2;
-                    required uint32 format = 3;
-                    optional uint32 status = 4;
-                    optional uint32 tag = 5;
-                    optional uint32 clientID = 6;
-                    optional string uuid = 7;
-                    required binary payload = 8;
-                }
-                """
-                self.connection.send_command_STP_1({
-                        0: 1,
-                        1: "scope",
-                        2: 3,
-                        3: 1,
-                        5: 0,
-                        7: self.uuid,
-                        8: '["json","%s"]' % self.uuid
-                    })
+                self.connection.connect_client(self.connect_callback)
             else:
                 http_connection.returnServiceList(self.serviceList)
-            
-
         else:
             print "not supported stp version in scope.returnServiceList(connection)"
-        
-    def handle_connect_callback(self, msg):
-        if self.connection.debug:
-            prettyPrint("send to client:", msg, 
-             self.connection.debug_format, self.connection.debug_format_payload)
-        if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:
-            self.connection.setCID(int(msg[8].strip('[]')))
-            self.connection.handle_stp1_msg = self.connection.handle_stp1_msg_default
-            self.http_connection.returnServiceList(self.serviceList)
-            del self.http_connection
-        else:
-            print "conection to host failed in scope.handle_connect_callback"
+
+    def connect_callback(self):
+        self.http_connection.returnServiceList(self.serviceList)
+        self.http_connection = None
        
     # TODO clean up naming
     
@@ -179,21 +147,23 @@ def prettyPrintPayloadItem(indent, name, definition, item):
           name,
           "message" in definition and \
             "\n" + prettyPrintPayload(item, 
-                definition["message"], indent=indent+2) or \
-            ( item == None and "null" or isinstance(item, str) and "\"%s\"" % item or item )
+                            definition["message"], indent=indent+2) or \
+            ( item == None and "null" or isinstance(item, str) and \
+                                                "\"%s\"" % item or item )
       ) 
 
 def prettyPrintPayload(payload, definitions, indent=2):
     INDENT = "  "
     ret = []
     type_str = type("")
+    # TODO message: self
     if definitions:
         for item, definition in zip(payload, definitions):
             if definition["q"] == "repeated":
                 ret.append("%s%s:" % (indent * INDENT, definition['name']))
                 for sub_item in item:
                     ret.append(prettyPrintPayloadItem(
-                            indent +1,
+                            indent + 1,
                             definition['name'].replace("List", ""),
                             definition,
                             sub_item))
