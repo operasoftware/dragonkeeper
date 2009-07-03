@@ -328,7 +328,6 @@ class ScopeConnection(asyncore.dispatcher):
             self.handle_stp1_msg = self.handle_stp1_msg_default
             self.connect_client_callback()
             self.connect_client_callback = None
-
         else:
             print "conection to host failed in scope.handle_connect_callback"
 
