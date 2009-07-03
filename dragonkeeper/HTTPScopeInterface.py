@@ -38,7 +38,14 @@ SERVICE_LIST = """<services>%s</services>"""
 SERVICE_ITEM = """<service name="%s"/>"""
 XML_PRELUDE = """<?xml version="1.0"?>%s"""
 
-class Scope(object):
+class Singleton(object):
+     """ A Pythonic Singleton """
+     def __new__(cls, *args, **kwargs):
+         if '_inst' not in vars(cls):
+             cls._inst = object.__new__(cls, *args, **kwargs)
+         return cls._inst
+
+class Scope(Singleton):
     """Used as a namespace for scope with methods to register 
     the send command and the service list"""
     def __init__(self):
