@@ -28,10 +28,7 @@ import re
 import HTTPConnection
 from time import time
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, getTimestamp
-
 from command_map import *
-
-
 
 # the two queues
 connections_waiting = []
