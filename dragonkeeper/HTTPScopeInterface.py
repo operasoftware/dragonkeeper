@@ -41,7 +41,7 @@ See also http://dragonfly.opera.com/app/scope-interface for more details.
 import re
 import HTTPConnection
 from time import time
-from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND
+from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, BAD_REQUEST
 from common import get_timestamp, Singleton 
 from command_map import *
 
@@ -57,7 +57,6 @@ class Scope(Singleton):
     """Access layer for HTTPScopeInterface instances to the scope connection"""
     def __init__(self):
         self.send_command = self.empty_call
-        self.commands_waiting = {}
         self.services_enabled = {}
         self.version = 'stp-0'
         self._service_list = []
@@ -105,7 +104,6 @@ class Scope(Singleton):
     def reset(self):
         self._service_list = []
         self.send_command = self.empty_call  
-        self.commands_waiting = {}
         self.services_enabled = {}
 
     def _connect_callback(self):
@@ -237,23 +235,33 @@ def pretty_print(prelude, msg, format, format_payload):
         print msg
 
 class HTTPScopeInterface(HTTPConnection.HTTPConnection):
-    """To provide a HTTP interface to the scope protocol. 
-    The purpose of this interface is mainly to develop Dragonfly, 
-    not to used it for actual debugging.
+    """To expose a HTTP interface of the scope interface.
 
     The first part of the path is the command name, other parts are arguments.
     If there is no matching command, the path is served.
     
     GET methods:
-        /services to get a list of available services
-        /enable/<service name> to enable the given service
-        /get-message to get a pending message or to wait for the next one
-            the target service is added in 
-            a custom header field 'X-Scope-Message-Service' 
-        /quite to quit the session, not implemented
+        /services 
+            to get a list of available services
+        /enable/<service name> 
+            to enable the given service
+        /get-message 
+            to get a pending message or to wait for the next one
+            header informations are added as custom header fields like:
+                X-Scope-Message-Service for the service name ( the only one in STP/0 )
+                X-Scope-Message-Command for the command id
+                X-Scope-Message-Status for the status code
+                X-Scope-Message-Tag for the tag 
+        /quite 
+            to quit the session, not implemented
         
     POST methods:
-        post-command/<service name>[/argument]*, message is the post body.
+        STP/0:
+            /post-command/<service name> 
+                request body: message
+        STP/1:
+            /post-command/<service-name>/<command-id>/<tag> 
+                request body: message
     """
 
     # scope specific responses
@@ -332,6 +340,20 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         '%s'
     )
 
+    # SCOPE_MESSAGE_STP_1 % ( timestamp, service, command, status, 
+    #                                           tag, message length, message )
+    # HTTP/1.1 200 OK
+    # Date: %s
+    # Server: Dragonkeeper/0.8
+    # Cache-Control: no-cache
+    # X-Scope-Message-Service: %s
+    # X-Scope-Message-Command: %s
+    # X-Scope-Message-Status: %s
+    # X-Scope-Message-Tag: %s
+    # Content-Type: text/plain
+    # Content-Length: %s
+    # 
+    # %s
     SCOPE_MESSAGE_STP_1 = RESPONSE_OK_CONTENT % (
         '%s',
         'Cache-Control: no-cache' + CRLF + \
@@ -343,19 +365,6 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         '%s',
         '%s'
     )
-
-    """
-    SCOPE_MESSAGE_STP_1_EMPTY = RESPONSE_BASIC % (
-        204,
-        'No Content',
-        '%s',
-        'Cache-Control: no-cache' + CRLF + \
-        'X-Scope-Message-Service: %s' + CRLF + \
-        'X-Scope-Message-Command: %s' + CRLF + \
-        'X-Scope-Message-Status: %s' + CRLF + \
-        'X-Scope-Message-Tag: %s' + 2 * CRLF
-    )
-    """
 
     def __init__(self, conn, addr, context):  
         HTTPConnection.HTTPConnection.__init__(self, conn, addr, context)
@@ -400,8 +409,6 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             if service.startswith('stp-'):
                 scope.set_STP_version(service)
             
-            while scope.commands_waiting[service]:
-                scope.send_command(scope.commands_waiting[service].pop(0))
         self.out_buffer += self.RESPONSE_OK_OK % get_timestamp()
         self.timeout = 0
 
@@ -425,6 +432,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     def post_command(self):
         """send a command to scope"""
         raw_data = self.raw_post_data
+        is_ok = False
         if scope.version == "stp-1":
             args = self.arguments
             """
@@ -450,16 +458,20 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
                     5: int(args[2]),
                     8: self.raw_post_data
                 })
+            is_ok = True
         else:
             service = self.arguments[0]
-            if not raw_data.startswith("<?xml") and not raw_data.startswith("STP/1"):
-                raw_data = XML_PRELUDE % raw_data  
-            msg = "%s %s" % (service, raw_data.decode('UTF-8'))
             if scope.services_enabled[service]:
+                if not raw_data.startswith("<?xml") and \
+                     not raw_data.startswith("STP/1"):
+                    raw_data = XML_PRELUDE % raw_data  
+                msg = "%s %s" % (service, raw_data.decode('UTF-8'))
                 scope.send_command(msg)
+                is_ok = True
             else:
-                scope.commands_waiting[service].append(msg)
-        self.out_buffer += self.RESPONSE_OK_OK % get_timestamp()
+                print "tried to send a command before the service was enabled"
+        self.out_buffer += ( is_ok and self.RESPONSE_OK_OK or 
+                                                BAD_REQUEST ) % get_timestamp()
         self.timeout = 0
             
     # ============================================================
@@ -529,7 +541,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         if self.timeout and time() > self.timeout and not self.out_buffer:
             if self in connections_waiting:
                 connections_waiting.remove(self)
-                if not self.command == "get_message": 
+                if not self.command in ["get_message", "scope_message"]: 
                     print ">>> failed, wrong connection type in queue" 
                 self.out_buffer += self.RESPONSE_TIMEOUT % get_timestamp()
             else:

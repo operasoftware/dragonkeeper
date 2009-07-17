@@ -74,6 +74,18 @@ REDIRECT = RESPONSE_BASIC % (
     'Location: %s' + 2 * CRLF
     )
 
+# BAD_REQUEST % ( timestamp )
+# HTTP/1.1 400 Bad Request
+# Date: %s
+# Server: Dragonkeeper/0.8
+
+BAD_REQUEST = RESPONSE_BASIC % (
+    400,
+    'Bad Request',
+    '%s',
+    2 * CRLF
+    )
+
 # NOT_FOUND % ( timestamp, content-length, content )
 # HTTP/1.1 404 NOT FOUND
 # Date: %s

@@ -40,22 +40,6 @@ def decode_varuint(buf):
         return False, buf
     return None, buf
 
-def read_stp1_msg_part(msg):
-    varint, msg = decode_varuint(msg)
-    if not varint == None:
-        tag, type = varint >> 3, varint & 7
-        if type == 2:
-            length, msg = decode_varuint(msg)
-            value = msg[0:length]
-            return tag, value, msg[length:]
-        elif type == 0:
-            value, msg = decode_varuint(msg)
-            return tag, value, msg 
-        else:
-            raise Exception("Not valid type in STP 1 message")
-    else:
-        raise Exception("Cannot read STP 1 message part")
-
 class ScopeConnection(asyncore.dispatcher):
     """To handle the socket connection to scope."""
     STP1_PB_STP1 = "STP\x01"
@@ -87,7 +71,6 @@ class ScopeConnection(asyncore.dispatcher):
         self.connect_client_callback = None
         self.uuid = str(randint(100, 10000000) + int(time() * 1000))
         self.STP1_PB_CLIENT_ID = ""
-
         self.varint = 0
         scope.set_connection(self)
 
@@ -109,6 +92,8 @@ class ScopeConnection(asyncore.dispatcher):
     # *quit         ---------------->
     #                                     ------------------>  *hostquit
     #                                     ------------------>  *quit
+    #
+    # See also http://dragonfly.opera.com/app/scope-interface for more details.
 
     def send_command_STP_0(self, msg):
         """ to send a message to scope"""
@@ -149,11 +134,10 @@ class ScopeConnection(asyncore.dispatcher):
                 services = msg.split(',')
                 print "services available:\n ", "\n  ".join(services)
                 if not self.force_stp_0 and 'stp-1' in services:
-                    self.setInitializerSTP_1()
+                    self.set_initializer_STP_1()
                     self.send_command_STP_0('*enable stp-1')
                 scope.set_service_list(services) 
                 for service in services:
-                    scope.commands_waiting[service] = []
                     scope.services_enabled[service] = False
             elif command in scope.services_enabled:
                 self.send_STP0_message_to_client(command, msg)
@@ -162,7 +146,7 @@ class ScopeConnection(asyncore.dispatcher):
             self.check_input()
 
     def read(self, max_length):
-        """to let the codec stramreader class treat 
+        """to let the codec streamreader class treat 
         the class itself like a file object"""
         try: 
             return self.recv(max_length)
@@ -228,11 +212,13 @@ class ScopeConnection(asyncore.dispatcher):
     #                   - - - - - - - - >
     #                                         - - - - - - - - ->  scope.Disconnect
     #
+    #
+    # See also http://dragonfly.opera.com/app/scope-interface for more details.
     
-    def setCID(self, id):
+    def set_CID(self, id):
         self.STP1_PB_CLIENT_ID = self.STP1_PB_CID + encode_varuint(id)
 
-    def clearCID(self):
+    def clear_CID(self):
         self.STP1_PB_CLIENT_ID = ""
 
     def send_command_STP_1(self, msg):
@@ -269,11 +255,11 @@ class ScopeConnection(asyncore.dispatcher):
             )
         self.handle_write()
 
-    def setInitializerSTP_1(self):
+    def set_initializer_STP_1(self):
         """change the read handler to the STP/1 read handler"""
         if self.in_buffer or self.out_buffer:
             raise Exception("read or write buffer is not empty "
-                                                "in setInitializerSTP_1")
+                                                "in set_initializer_STP_1")
         self.in_buffer = ""
         self.out_buffer = ""
         self.handle_read = self.read_STP_1_initializer
@@ -294,7 +280,7 @@ class ScopeConnection(asyncore.dispatcher):
 
     def connect_client(self, callback):
         self.connect_client_callback = callback
-        self.clearCID()  
+        self.clear_CID()  
         self.handle_stp1_msg = self.handle_connect_client
         """ 
         message TransportMessage
@@ -321,10 +307,10 @@ class ScopeConnection(asyncore.dispatcher):
 
     def handle_connect_client(self, msg):
         if self.debug:
-            pretty_print("send to client:", msg, 
+            pretty_print("client connected:", msg, 
                             self.debug_format, self.debug_format_payload)
         if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:
-            self.setCID(int(msg[8].strip('[]')))
+            self.set_CID(int(msg[8].strip('[]')))
             self.handle_stp1_msg = self.handle_stp1_msg_default
             self.connect_client_callback()
             self.connect_client_callback = None
@@ -356,7 +342,7 @@ class ScopeConnection(asyncore.dispatcher):
             self.in_buffer = self.in_buffer[self.varint:]
             self.varint = 0
             self.check_input = self.read_stp1_token
-            self.parse_stp1_msg(stp1_msg)
+            self.parse_STP_1_msg(stp1_msg)
             if self.in_buffer:
                 self.check_input()
 
@@ -365,7 +351,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.in_buffer += self.recv(BUFFERSIZE)
         self.check_input()
 
-    def parse_stp1_msg(self, stp1_msg):
+    def parse_STP_1_msg(self, STP_1_msg):
         """parse a STP 1 message
         msg_type: 1 = command, 2 = response, 3 = event, 4 = error
         message TransportMessage
@@ -380,7 +366,7 @@ class ScopeConnection(asyncore.dispatcher):
             required binary payload = 8;
         }
         """
-        msg_type, stp1_msg = decode_varuint(stp1_msg)
+        msg_type, STP_1_msg = decode_varuint(STP_1_msg)
         if msg_type == None:
             raise Exception("Message type of STP 1 message cannot be parsed")
         else:
@@ -390,8 +376,8 @@ class ScopeConnection(asyncore.dispatcher):
                 5: 0, 
                 8: ''
                 }
-            while stp1_msg:
-                key, value, stp1_msg = read_stp1_msg_part(stp1_msg)
+            while STP_1_msg:
+                key, value, STP_1_msg = self.read_STP_1_msg_part(STP_1_msg)
                 msg[key] = value
         self.handle_stp1_msg(msg)
 
@@ -400,6 +386,22 @@ class ScopeConnection(asyncore.dispatcher):
             connections_waiting.pop(0).return_scope_message_STP_1(msg, self)
         else:
             scope_messages.append(msg)
+
+    def read_STP_1_msg_part(self, msg):
+        varint, msg = decode_varuint(msg)
+        if not varint == None:
+            tag, type = varint >> 3, varint & 7
+            if type == 2:
+                length, msg = decode_varuint(msg)
+                value = msg[0:length]
+                return tag, value, msg[length:]
+            elif type == 0:
+                value, msg = decode_varuint(msg)
+                return tag, value, msg 
+            else:
+                raise Exception("Not valid type in STP 1 message")
+        else:
+            raise Exception("Cannot read STP 1 message part")
 
     # ============================================================
     # Implementations of the asyncore.dispatcher class methods 
