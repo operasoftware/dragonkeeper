@@ -2,7 +2,7 @@ import ConfigParser
 import sys
 import os
 from HTTPScopeInterface import HTTPScopeInterface
-from ScopeConnection import ScopeConnection
+from STPConnection import ScopeConnection
 from SimpleServer import SimpleServer, asyncore
 from common import Options
 

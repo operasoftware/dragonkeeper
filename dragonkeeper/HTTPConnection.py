@@ -56,25 +56,27 @@ class HTTPConnection(asyncore.dispatcher):
             elif method == "GET":
                 if hasattr(self, command):
                     getattr(self, command)()
-                elif os.path.exists(path) or not path:
-                    self.serve(path)
-                elif path == "favicon.ico":
-                    self.serve(path_join(sys.path[0], "favicon.ico"))
                 else:
-                    content = "The server cannot handle: %s" % path
-                    self.out_buffer += NOT_FOUND % (
-                        getTimestamp(),
-                        len(content),
-                        content
-                        )
-                    self.timeout = 0
+                    system_path = URI_to_system_path(path.rstrip("/")) or "." 
+                    if os.path.exists(system_path) or not path:
+                        self.serve(path, system_path)
+                    elif path == "favicon.ico":
+                        self.serve(path, path_join(SOURCE_ROOT, "favicon.ico"))
+                    else:
+                        content = "The server cannot handle: %s" % path
+                        self.out_buffer += NOT_FOUND % (
+                            get_timestamp(),
+                            len(content),
+                            content
+                            )
+                        self.timeout = 0
                 if self.in_buffer:
                     self.check_input()
             # Not implemented method
             else:
                 content = "The server cannot handle: %s" % method
                 self.out_buffer += NOT_FOUND % ( 
-                    getTimestamp(), 
+                    get_timestamp(), 
                     len(content), 
                     content
                     )
@@ -88,7 +90,7 @@ class HTTPConnection(asyncore.dispatcher):
             else:
                 content = "The server cannot handle: %s" % self.path
                 self.out_buffer += NOT_FOUND % (
-                    getTimestamp(),
+                    get_timestamp(),
                     len(content),
                     content
                     )
@@ -99,27 +101,26 @@ class HTTPConnection(asyncore.dispatcher):
             if self.in_buffer:
                 self.check_input()
 
-    def serve(self, path):
-        system_path = webURIToSystemPath(path.rstrip("/")) or "."
+    def serve(self, path, system_path):
         if path_exists(system_path) or path == "":
             if isfile(system_path):
-                self.serveFile(path, system_path)
+                self.serve_file(path, system_path)
             elif isdir(system_path) or path == "":
-                self.serveDir(path, system_path)
+                self.serve_dir(path, system_path)
         else:
             content = "The sever couldn't find %s" % system_path
             self.out_buffer += NOT_FOUND % (
-                getTimestamp(),
+                get_timestamp(),
                 len(content),
                 content
                 )
             self.timeout = 0
 
-    def serveFile(self, path, system_path):
+    def serve_file(self, path, system_path):
         if "If-Modified-Since" in self.headers and \
-           timestampToTime(self.headers["If-Modified-Since"]) >= \
+           timestamp_to_time(self.headers["If-Modified-Since"]) >= \
            int(stat(system_path).st_mtime):
-            self.out_buffer += NOT_MODIFIED % getTimestamp()
+            self.out_buffer += NOT_MODIFIED % get_timestamp()
             self.timeout = 0
         else:
             ending = "." in path and path[path.rfind("."):] or "no-ending"
@@ -129,9 +130,9 @@ class HTTPConnection(asyncore.dispatcher):
                 content = f.read()
                 f.close()            
                 self.out_buffer += RESPONSE_OK_CONTENT % (
-                    getTimestamp(),
+                    get_timestamp(),
                     'Last-Modified: %s%s' %  (
-                        getTimestamp(system_path), 
+                        get_timestamp(system_path), 
                         CRLF
                         ),
                     mime, 
@@ -142,15 +143,15 @@ class HTTPConnection(asyncore.dispatcher):
             except:
                 content = "The server cannot find %s" % system_path
                 self.out_buffer += NOT_FOUND % (
-                    getTimestamp(),
+                    get_timestamp(),
                     len(content),
                     content
                     )
                 self.timeout = 0
 
-    def serveDir(self, path, system_path):
+    def serve_dir(self, path, system_path):
         if path and not path.endswith('/'):
-            self.out_buffer +=  REDIRECT % (getTimestamp(), path + '/')
+            self.out_buffer +=  REDIRECT % (get_timestamp(), path + '/')
             self.timeout = 0
         else:
             try:
@@ -170,7 +171,7 @@ class HTTPConnection(asyncore.dispatcher):
             except Exception, msg:
                 content = DIR_VIEW % """<li style="color:#f30">%s</li>""" % msg
             self.out_buffer += RESPONSE_OK_CONTENT % ( 
-                getTimestamp(), 
+                get_timestamp(), 
                 '', 
                 "text/html", 
                 len(content), 

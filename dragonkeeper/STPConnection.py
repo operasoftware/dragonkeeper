@@ -5,7 +5,7 @@ from time import time
 from random import randint
 from common import BLANK, BUFFERSIZE
 from HTTPScopeInterface import connections_waiting, scope_messages, scope
-from HTTPScopeInterface import formatXML, prettyPrint
+from HTTPScopeInterface import pretty_print_XML, pretty_print
 
 def encode_varuint(value):
     if value == 0:
@@ -89,7 +89,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.STP1_PB_CLIENT_ID = ""
 
         self.varint = 0
-        scope.setConnection(self)
+        scope.set_connection(self)
 
     # ============================================================
     # STP 0
@@ -115,7 +115,7 @@ class ScopeConnection(asyncore.dispatcher):
         if self.debug:
             if self.debug_format:
                 service, payload = msg.split(BLANK, 1)
-                print "\nsend to scope:", service, formatXML(payload)
+                print "\nsend to scope:", service, pretty_print_XML(payload)
             else:
                 print "send to scope:", msg
         self.out_buffer += ("%s %s" % (len(msg), msg)).encode("UTF-16BE")
@@ -124,7 +124,7 @@ class ScopeConnection(asyncore.dispatcher):
     def send_STP0_message_to_client(self, command, msg):
         """send a message to the client"""
         if connections_waiting:
-            connections_waiting.pop(0).sendScopeEventSTP0(
+            connections_waiting.pop(0).return_scope_message_STP_0(
                     (command, msg), self)
         else:
             scope_messages.append((command, msg))
@@ -151,7 +151,7 @@ class ScopeConnection(asyncore.dispatcher):
                 if not self.force_stp_0 and 'stp-1' in services:
                     self.setInitializerSTP_1()
                     self.send_command_STP_0('*enable stp-1')
-                scope.setServiceList(services) 
+                scope.set_service_list(services) 
                 for service in services:
                     scope.commands_waiting[service] = []
                     scope.services_enabled[service] = False
@@ -250,7 +250,7 @@ class ScopeConnection(asyncore.dispatcher):
         }
         """
         if self.debug:
-            prettyPrint("send to host:", msg, 
+            pretty_print("send to host:", msg, 
                             self.debug_format, self.debug_format_payload)
         stp_1_msg = "".join([
             self.STP1_PB_TYPE_COMMAND,
@@ -285,7 +285,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.in_buffer += self.recv(BUFFERSIZE)
         if self.in_buffer.startswith("STP/1\n"):
             self.in_buffer = self.in_buffer[6:]
-            scope.setSTPVersion('stp-1')
+            scope.set_STP_version('stp-1')
             self.handle_read = self.handle_read_STP_1
             self.check_input = self.read_stp1_token
             self.handle_stp1_msg = self.handle_stp1_msg_default
@@ -321,7 +321,7 @@ class ScopeConnection(asyncore.dispatcher):
 
     def handle_connect_client(self, msg):
         if self.debug:
-            prettyPrint("send to client:", msg, 
+            pretty_print("send to client:", msg, 
                             self.debug_format, self.debug_format_payload)
         if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:
             self.setCID(int(msg[8].strip('[]')))
@@ -397,7 +397,7 @@ class ScopeConnection(asyncore.dispatcher):
 
     def handle_stp1_msg_default(self, msg):
         if connections_waiting:
-            connections_waiting.pop(0).sendScopeEventSTP1(msg, self)
+            connections_waiting.pop(0).return_scope_message_STP_1(msg, self)
         else:
             scope_messages.append(msg)
 

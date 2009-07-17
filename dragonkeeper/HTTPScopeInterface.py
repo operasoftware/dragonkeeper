@@ -2,32 +2,47 @@
 
 The proxy / server is build as an extension of the asyncore.dispatcher class.
 There are two instantiation of SimpleServer to listen on the given ports 
-for new connection, on for http and the other for scope. They do dispatch a 
-connection to the appropriate classes, Connection for http and 
-ScopeConnection for scope. 
-There are also two queues, one for getting a new scope message and one for 
-scope messages. Getting a new scope message is performed as GET request 
-with the path /scope-message. If the scope-message queue is not empty then
+for new connection, on for HTTP and the other for STP (ScopeTransferProtocol).
+They do dispatch a connection to the appropriate classes, HTTPScopeInterface 
+for HTTP and ScopeConnection for STP. The client is the application which uses 
+the HTTP interface to connect to scope, the host is the Opera instance 
+which exposes the scope interface as a STP connection.
+
+There are also two queues, one for HTTP and one for STP to return a scope 
+message to the client. Getting a new scope message is performed as GET request 
+with the path /get-message. If the STP queue is not empty then
 the first of that queue is returned, otherwise the request is put 
-in the waiting-queue. If a new message arrives on the scope sockets it works 
+in the HTTP waiting-queue. If a new message arrives on the STP sockets it works 
 the other way around: if the waiting-queue is not empty, the message is
 returned to the first waiting connection, otherwise it's put on 
-the scope-message queue.
+the STP message queue.
+
 In contrast to the previous Java version there is only one waiting connection
-for scope messages, the messages are dispatched to the correct service 
+for scope messages, the messages are dispatched to the target service 
 on the client side. The target service is added to the response 
-as custom header 'X-Scope-Message-Service'. This pattern will be extended 
-for the STP 1 version.
-The server is named Dragonkeeper to stay in the started namespace.
+as custom header 'X-Scope-Message-Service'. 
 
-It is only for one client and one host.
+STP/1 messages have a header and a payload. The header is translated 
+to custom header fields, the payload is the body of the response:
+
+    X-Scope-Message-Service for the service name
+    X-Scope-Message-Command for the command id
+    X-Scope-Message-Status for the status code
+    X-Scope-Message-Tag for the tag
+
+The server is named Dragonkeeper to stay in the started names pace.
+
+The server supports only one host and one client. The main purpose is 
+developing Opera Dragonfly.
+
+See also http://dragonfly.opera.com/app/scope-interface for more details.
 """
-
 
 import re
 import HTTPConnection
 from time import time
-from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, getTimestamp
+from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND
+from common import get_timestamp, Singleton 
 from command_map import *
 
 # the two queues
@@ -38,71 +53,68 @@ SERVICE_LIST = """<services>%s</services>"""
 SERVICE_ITEM = """<service name="%s"/>"""
 XML_PRELUDE = """<?xml version="1.0"?>%s"""
 
-class Singleton(object):
-     """ A Pythonic Singleton """
-     def __new__(cls, *args, **kwargs):
-         if '_inst' not in vars(cls):
-             cls._inst = object.__new__(cls, *args, **kwargs)
-         return cls._inst
-
 class Scope(Singleton):
-    """Used as a namespace for scope with methods to register 
-    the send command and the service list"""
+    """Access layer for HTTPScopeInterface instances to the scope connection"""
     def __init__(self):
-        self.serviceList = []
-        self.sendCommand = self.empty_call
+        self.send_command = self.empty_call
         self.commands_waiting = {}
         self.services_enabled = {}
-        self.connection = None
         self.version = 'stp-0'
-        self.http_connection = None
+        self._service_list = []
+        self._connection = None
+        self._http_connection = None
 
     def empty_call(self, msg):
         pass
     
-    def setConnection(self, connection):
-        self.connection = connection
-        self.sendCommand = connection.send_command_STP_0
+    def set_connection(self, connection):
+        """ to register the scope connection"""
+        self._connection = connection
+        self.send_command = connection.send_command_STP_0
 
-    def setServiceList(self, list):
-        self.serviceList = list
+    def set_service_list(self, list):
+        """to register the service list"""
+        self._service_list = list
 
-    def returnServiceList(self, http_connection):
+    def return_service_list(self, http_connection):
+        """to get the service list.
+        in STP/1 the request of the service list does trigger to (re) connect
+        the client. Only after the Connect command was performed successfully
+        the service list is returned to the client"""
         if self.version == 'stp-0':
-            http_connection.returnServiceList(self.serviceList)
+            http_connection.return_service_list(self._service_list)
         elif self.version == 'stp-1':
-            if self.connection:
-                self.http_connection = http_connection
-                self.connection.connect_client(self.connect_callback)
+            if self._connection:
+                self._http_connection = http_connection
+                self._connection.connect_client(self._connect_callback)
             else:
-                http_connection.returnServiceList(self.serviceList)
+                _http_connection.return_service_list(self._service_list)
         else:
-            print "not supported stp version in scope.returnServiceList(connection)"
+            print "not supported stp version in scope.return_service_list(connection)"
 
-    def connect_callback(self):
-        self.http_connection.returnServiceList(self.serviceList)
-        self.http_connection = None
-       
-    # TODO clean up naming
     
-    def setSTPVersion(self, version):
-        # self.version = version
-        # version gets set as soon as the STP/1 token is received
+    def set_STP_version(self, version):
+        """to register the STP version.
+        the version gets set as soon as the STP/1 token is received"""
         if version == "stp-1":
             self.version = "stp-1"
-            self.sendCommand = self.connection.send_command_STP_1
+            self.send_command = self._connection.send_command_STP_1
         else:
             print "This stp version is not jet supported"
 
     def reset(self):
-        self.serviceList = []
-        self.sendCommand = self.empty_call  
+        self._service_list = []
+        self.send_command = self.empty_call  
         self.commands_waiting = {}
         self.services_enabled = {}
 
+    def _connect_callback(self):
+        self._http_connection.return_service_list(self._service_list)
+        self._http_connection = None
+
 scope = Scope()
 
-def formatXML(in_string):
+def pretty_print_XML(in_string):
     """To pretty print STP 0 messages"""
     if in_string.startswith("<"):
         in_string = re.sub(r"<\?[^>]*>", "", in_string)
@@ -142,19 +154,19 @@ def formatXML(in_string):
         ret = [in_string]
     return "".join(ret)
 
-def prettyPrintPayloadItem(indent, name, definition, item):
+def pretty_print_payload_item(indent, name, definition, item):
     INDENT = "  "
     return "%s%s: %s" % ( 
           indent * INDENT, 
           name,
           "message" in definition and \
-            "\n" + prettyPrintPayload(item, 
+            "\n" + pretty_print_payload(item, 
                             definition["message"], indent=indent+2) or \
             ( item == None and "null" or isinstance(item, str) and \
                                                 "\"%s\"" % item or item )
       ) 
 
-def prettyPrintPayload(payload, definitions, indent=2):
+def pretty_print_payload(payload, definitions, indent=2):
     INDENT = "  "
     ret = []
     type_str = type("")
@@ -164,13 +176,13 @@ def prettyPrintPayload(payload, definitions, indent=2):
             if definition["q"] == "repeated":
                 ret.append("%s%s:" % (indent * INDENT, definition['name']))
                 for sub_item in item:
-                    ret.append(prettyPrintPayloadItem(
+                    ret.append(pretty_print_payload_item(
                             indent + 1,
                             definition['name'].replace("List", ""),
                             definition,
                             sub_item))
             else:
-                ret.append(prettyPrintPayloadItem(
+                ret.append(pretty_print_payload_item(
                         indent,
                         definition['name'],
                         definition,
@@ -179,7 +191,7 @@ def prettyPrintPayload(payload, definitions, indent=2):
     else:
         return ""
 
-def prettyPrint(prelude, msg, format, format_payload):
+def pretty_print(prelude, msg, format, format_payload):
     """
     message type: 1 = command, 2 = response, 3 = event, 4 = error
     message TransportMessage
@@ -216,7 +228,7 @@ def prettyPrint(prelude, msg, format, format_payload):
                 # a bit a hack
                 payload = eval(msg[8].replace(",null", ",None"))
                 print "  payload:"
-                print prettyPrintPayload(payload, command.get(msg[0], None)), '\n'
+                print pretty_print_payload(payload, command.get(msg[0], None)), '\n'
             except Exception, e:
                 print "\n".join([">>>>>>>", e, msg[8]])
         else:
@@ -225,7 +237,7 @@ def prettyPrint(prelude, msg, format, format_payload):
         print msg
 
 class HTTPScopeInterface(HTTPConnection.HTTPConnection):
-    """To provide a http interface to the scope protocol. 
+    """To provide a HTTP interface to the scope protocol. 
     The purpose of this interface is mainly to develop Dragonfly, 
     not to used it for actual debugging.
 
@@ -235,13 +247,13 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     GET methods:
         /services to get a list of available services
         /enable/<service name> to enable the given service
-        /scope-message to get a pending message or to wait for the next one
+        /get-message to get a pending message or to wait for the next one
             the target service is added in 
             a custom header field 'X-Scope-Message-Service' 
         /quite to quit the session, not implemented
         
     POST methods:
-        send-command/<service name>[/argument]*, message is the post body.
+        post-command/<service name>[/argument]*, message is the post body.
     """
 
     # scope specific responses
@@ -350,6 +362,9 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         self.debug = context.debug
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
+        # for backward compatibility
+        self.scope_message = self.get_message
+        self.send_command = self.post_command
 
     # ============================================================
     # GET commands ( first part of the path )
@@ -359,16 +374,16 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         """to get the service list"""
         if connections_waiting:
             print ">>> failed, connections_waiting is not empty"
-        scope.returnServiceList(self)
+        scope.return_service_list(self)
         self.timeout = 0
 
-    def returnServiceList(self, serviceList):
+    def return_service_list(self, serviceList):
         content = SERVICE_LIST % "".join (
             [SERVICE_ITEM % service.encode('utf-8') 
             for service in serviceList] 
             )
         self.out_buffer += self.RESPONSE_SERVICELIST % ( 
-            getTimestamp(), 
+            get_timestamp(), 
             len(content), 
             content
             )
@@ -379,24 +394,24 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         if scope.services_enabled[service]:
             print ">>> service is already enabled", service
         else:
-            scope.sendCommand("*enable %s" % service)
+            scope.send_command("*enable %s" % service)
             scope.services_enabled[service] = True
             
             if service.startswith('stp-'):
-                scope.setSTPVersion(service)
+                scope.set_STP_version(service)
             
             while scope.commands_waiting[service]:
-                scope.sendCommand(scope.commands_waiting[service].pop(0))
-        self.out_buffer += self.RESPONSE_OK_OK % getTimestamp()
+                scope.send_command(scope.commands_waiting[service].pop(0))
+        self.out_buffer += self.RESPONSE_OK_OK % get_timestamp()
         self.timeout = 0
 
-    def scope_message(self):
+    def get_message(self):
         """general call to get the next scope message"""
         if scope_messages:
             if scope.version == 'stp-1':
-                self.sendScopeEventSTP1(scope_messages.pop(0), self)
+                self.return_scope_message_STP_1(scope_messages.pop(0), self)
             else:
-                self.sendScopeEventSTP0(scope_messages.pop(0), self)
+                self.return_scope_message_STP_0(scope_messages.pop(0), self)
             self.timeout = 0
         else:
             connections_waiting.append(self)
@@ -407,7 +422,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     # POST commands 
     # ============================================================
 
-    def send_command(self):
+    def post_command(self):
         """send a command to scope"""
         raw_data = self.raw_post_data
         if scope.version == "stp-1":
@@ -427,7 +442,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             }
             /send-command/" + service + "/" + command_id + "/" + tag 
             """
-            scope.sendCommand({
+            scope.send_command({
                     0: 1, # message type
                     1: args[0],
                     2: int(args[1]),
@@ -441,26 +456,26 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
                 raw_data = XML_PRELUDE % raw_data  
             msg = "%s %s" % (service, raw_data.decode('UTF-8'))
             if scope.services_enabled[service]:
-                scope.sendCommand(msg)
+                scope.send_command(msg)
             else:
                 scope.commands_waiting[service].append(msg)
-        self.out_buffer += self.RESPONSE_OK_OK % getTimestamp()
+        self.out_buffer += self.RESPONSE_OK_OK % get_timestamp()
         self.timeout = 0
             
     # ============================================================
     # STP 0
     # ============================================================
 
-    def sendScopeEventSTP0(self, msg, sender):
+    def return_scope_message_STP_0(self, msg, sender):
         """ return a message to the client"""
         service, payload = msg
         if self.debug:
             if self.debug_format:
-                print "\nsend to client:", service, formatXML(payload)
+                print "\nsend to client:", service, pretty_print_XML(payload)
             else:
                 print "send to client:", service, payload
         self.out_buffer += self.SCOPE_MESSAGE_STP_0 % (
-            getTimestamp(), 
+            get_timestamp(), 
             service, 
             len(payload), 
             payload
@@ -473,7 +488,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     # STP 1
     # ============================================================
 
-    def sendScopeEventSTP1(self, msg, sender):
+    def return_scope_message_STP_1(self, msg, sender):
         """ return a message to the client
         message TransportMessage
         {
@@ -491,10 +506,10 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             # workaround, status 204 does not work
             msg[8] = ' '  
         if self.debug:
-            prettyPrint("send to client:", msg, 
+            pretty_print("send to client:", msg, 
                                 self.debug_format, self.debug_format_payload)
         self.out_buffer += self.SCOPE_MESSAGE_STP_1 % (
-            getTimestamp(), 
+            get_timestamp(), 
             msg[1], # service
             msg[2], # command
             msg[4], # status
@@ -514,12 +529,12 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         if self.timeout and time() > self.timeout and not self.out_buffer:
             if self in connections_waiting:
                 connections_waiting.remove(self)
-                if not self.command == "scope_message": 
+                if not self.command == "get_message": 
                     print ">>> failed, wrong connection type in queue" 
-                self.out_buffer += self.RESPONSE_TIMEOUT % getTimestamp()
+                self.out_buffer += self.RESPONSE_TIMEOUT % get_timestamp()
             else:
                 self.out_buffer += NOT_FOUND % ( 
-                    getTimestamp(), 
+                    get_timestamp(), 
                     0, 
                     ''
                     )

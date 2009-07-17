@@ -21,6 +21,7 @@ CRLF = '\r\n'
 BLANK = ' '
 BUFFERSIZE = 8192
 RE_HEADER = re.compile(": *")
+SOURCE_ROOT = os.getcwd()
 
 RESPONSE_BASIC = \
     'HTTP/1.1 %s %s' + CRLF + \
@@ -148,17 +149,14 @@ ITEM_FILE = """<li class="file"><a href="./%s"><icon></icon>%s</a></li>"""
 
 TIMEOUT = 30
 
-def webURIToSystemPath(path):
+def URI_to_system_path(path):
     return path_join(*[unquote(part) for part in path.split('/')])
 
-def systemPathToWebUri(path):
-    return "/".join([quote(part) for part in path.split(OS_PATH_SEP)])
-
-def getTimestamp(path = None):
+def get_timestamp(path = None):
     return strftime("%a, %d %b %Y %H:%M:%S GMT", 
                             gmtime(path and stat(path).st_mtime or None))
 
-def timestampToTime(stamp):
+def timestamp_to_time(stamp):
     """see http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.3.1 
     only this format is supported: Fri, 16 Nov 2007 16:09:43 GMT
     from the spec:
@@ -196,3 +194,11 @@ class Options(object):
 
     def __str__(self):
         return str(self.__dict__)
+
+# http://book.opensourceproject.org.cn/lamp/python/pythoncook2/opensource/0596007973/pythoncook2-chp-6-sect-15.html
+class Singleton(object):
+     """ A Pythonic Singleton """
+     def __new__(cls, *args, **kwargs):
+         if '_inst' not in vars(cls):
+             cls._inst = object.__new__(cls, *args, **kwargs)
+         return cls._inst
