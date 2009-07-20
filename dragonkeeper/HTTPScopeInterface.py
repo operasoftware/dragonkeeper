@@ -207,14 +207,14 @@ def pretty_print(prelude, msg, format, format_payload):
     print prelude
     if format:
         service = msg[1]
-        command = commandMap.get(service, {}).get(msg[2], None)
-        print "  message type:", msgTypeMap[msg[0]]
+        command = command_map.get(service, {}).get(msg[2], None)
+        print "  message type:", message_type_map[msg[0]]
         print "  service:", service
         print "  command:", command and \
                         command.get("name", None) or '<id: %d>' % msg[2]
-        print "  format:", typeMap[msg[3]]
+        print "  format:", format_type_map[msg[3]]
         if 4 in msg:
-            print "  status:", statusMap[msg[4]]
+            print "  status:", status_map[msg[4]]
         if 6 in msg:
             print "  cid:", msg[6]
         if 7 in msg:

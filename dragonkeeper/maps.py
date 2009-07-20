@@ -1,8 +1,6 @@
-﻿
+﻿# created with opprotoc 
 
-# created with opprotoc 
-
-statusMap = {
+status_map = {
     0: "OK",
     1: "Conflict",
     2: "Unsupported Type",
@@ -15,20 +13,20 @@ statusMap = {
     9: "Service Already Enabled",
     }
 
-typeMap = {
+format_type_map = {
     0: "protocol-buffer",
     1: "json",
     2: "xml"
     }
 
-msgTypeMap = {
+message_type_map = {
     1: "command", 
     2: "response", 
     3: "event", 
     4: "error"
     }
 
-commandMap = {
+command_map = {
     "console-logger": {
         1: {
             "name": "OnConsoleMessage",
