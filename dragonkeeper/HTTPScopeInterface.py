@@ -43,7 +43,7 @@ import HTTPConnection
 from time import time
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT, NOT_FOUND, BAD_REQUEST
 from common import get_timestamp, Singleton 
-from command_map import *
+from maps import status_map, format_type_map, message_type_map, command_map
 
 # the two queues
 connections_waiting = []
