@@ -1,0 +1,7 @@
+include README
+include CHANGELOG
+include MANIFEST.in
+include LICENSE
+include favicon.ico
+recursive-include dragonkeeper *.py
+prune dragonkeeper/*.pyc

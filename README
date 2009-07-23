@@ -1,3 +1,47 @@
+
+.. -*- restructuredtext -*-
+
+################################################
+Dragonkeeper - Opera Dragonfly development proxy
+################################################
+
+Introduction
+------------
+
+Dragonkeeper is a utility for working on the Opera Dragonfly client.
+Dragonfly serves as a proxy between the debugger and the debuggee. This makes
+it possible to run the Opera Dragonfly client as a normal web page. This
+makes development easy, as on can simple reload the client whenever making
+changes to it.
+
+Howto
+-----
+
+Basic workflow when using Dragonkeeper is as follows:
+
+- Get a source distribution of Opera Dragonfly from http://dragonfly.opera.com
+  or by cloning the mercurial repository at FIXME: URL
+- Launch Dragonkeeper with the appropriate options. If the current directory
+  is the Dragonfly directory, all the default options should be fine.
+- Open a browser to be debugged, the debuggee.
+- In the debugee, open the adress "opera:debug".
+- Enter the IP address and port of the machine running Dragonkeeper.
+  The defaults are localhost and 7001.
+- Open a separate Opera instance, this will be the debugger instance.
+- Navigate to the IP/port of the Dragonkeeper instance. The default port is
+  8002
+- You'll get a directory listing. You should open client-en.xml in the src
+  folder.
+- This will load Opera Dragonfly from the Dragonkeeper and connect to the
+  debuggee.
+  
+Note that both the debuggee and the debugger can run on the same machine. This
+makes sense when developing.
+
+
+Usage
+-----
+
 Usage: proxy.py [options]
 
 Exit: Control-C
@@ -21,5 +65,32 @@ Options:
                         server port; default 8002
   --host=HOST           host; default
 
-
 More comments in the source files.
+
+
+Changelog
+---------
+
+See the CHANGELOG file
+
+Contact
+-------
+
+Dragonkeeper is maintained by the Opera Dragonfly team. The authors are
+
+- Christian Krebs <chrisk@opera.com>
+- Rune Halvorsen <runeh@opera.com>
+- Jan Borsodi <jborsodi@opera.com>
+
+The Opera Dragonfly web site is at http://dragonfly.opera.com
+
+FIXME: more links, like to BTS?
+
+License
+-------
+
+This software is licensed under the FIXME license. See the ``LICENSE``
+file in the top distribution directory for the full license text.
+
+
+
