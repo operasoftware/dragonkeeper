@@ -57,7 +57,8 @@ NOT_MODIFIED = RESPONSE_BASIC % (
     304,
     'Not Modified',
     '%s',
-    CRLF)
+    CRLF,
+)
 
 # REDIRECT % ( timestamp, uri)
 # HTTP/1.1 301 Moved Permanently
@@ -69,7 +70,8 @@ REDIRECT = RESPONSE_BASIC % (
     301,
     'Moved Permanently',
     '%s',
-    'Location: %s' + 2 * CRLF)
+    'Location: %s' + 2 * CRLF,
+)
 
 # BAD_REQUEST % ( timestamp )
 # HTTP/1.1 400 Bad Request
@@ -80,7 +82,8 @@ BAD_REQUEST = RESPONSE_BASIC % (
     400,
     'Bad Request',
     '%s',
-    2 * CRLF)
+    2 * CRLF,
+)
 
 # NOT_FOUND % ( timestamp, content-length, content )
 # HTTP/1.1 404 NOT FOUND
@@ -97,7 +100,8 @@ NOT_FOUND = RESPONSE_BASIC % (
     '%s',
     'Content-Type: text/plain' + CRLF + \
     'Content-Length:%s' + 2 * CRLF + \
-    '%s')
+    '%s',
+)
 
 # The template to create a html directory view
 DIR_VIEW = \

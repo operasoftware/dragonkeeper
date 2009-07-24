@@ -372,7 +372,8 @@ class ScopeConnection(asyncore.dispatcher):
                 0: msg_type,
                 4: 0,
                 5: 0,
-                8: ''}
+                8: '',
+            }
             while STP_1_msg:
                 key, value, STP_1_msg = self.read_STP_1_msg_part(STP_1_msg)
                 msg[key] = value

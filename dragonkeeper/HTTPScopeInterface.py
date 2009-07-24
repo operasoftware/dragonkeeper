@@ -286,7 +286,8 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         'Cache-Control: no-cache' + CRLF,
         'application/xml',
         '%s',
-        '%s')
+        '%s',
+    )
 
     # RESPONSE_OK_OK % ( timestamp )
     # HTTP/1.1 200 OK
@@ -303,7 +304,8 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         'Cache-Control: no-cache' + CRLF,
         'application/xml',
         len("<ok/>"),
-        "<ok/>")
+        "<ok/>",
+    )
 
     # RESPONSE_TIMEOUT % ( timestamp )
     # HTTP/1.1 200 OK
@@ -320,7 +322,8 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         'Cache-Control: no-cache' + CRLF,
         'application/xml',
         len('<timeout/>'),
-        '<timeout/>')
+        '<timeout/>',
+    )
 
     # SCOPE_MESSAGE_STP_0 % ( timestamp, service, message length, message )
     # HTTP/1.1 200 OK
@@ -339,7 +342,8 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         'X-Scope-Message-Service: %s' + CRLF,
         'application/xml',
         '%s',
-        '%s')
+        '%s',
+    )
 
     # SCOPE_MESSAGE_STP_1 % ( timestamp, service, command, status,
     #                                           tag, message length, message )
@@ -364,7 +368,8 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
         'X-Scope-Message-Tag: %s' + CRLF,
         'text/plain',
         '%s',
-        '%s')
+        '%s',
+    )
 
     def __init__(self, conn, addr, context):
         HTTPConnection.HTTPConnection.__init__(self, conn, addr, context)
@@ -451,7 +456,8 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
                     2: int(args[1]),
                     3: 1,
                     5: int(args[2]),
-                    8: self.raw_post_data})
+                    8: self.raw_post_data,
+                })
             is_ok = True
         else:
             service = self.arguments[0]
@@ -519,8 +525,8 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
             msg[4], # status
             msg[5], # tag
             len(msg[8]),
-            msg[8] # payload
-            )
+            msg[8], # payload
+        )
         self.timeout = 0
         if not sender == self:
             self.handle_write()

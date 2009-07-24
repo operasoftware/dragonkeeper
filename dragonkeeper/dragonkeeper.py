@@ -16,7 +16,8 @@ APP_DEFAULTS = {
     "debug": False,
     "format": False,
     "force_stp_0": False,
-    "format_payload": False}
+    "format_payload": False,
+}
 
 DEFAULT_TYPES = {
     "host": str,
@@ -26,7 +27,8 @@ DEFAULT_TYPES = {
     "debug": bool,
     "format": bool,
     "force_stp_0": bool,
-    "format_payload": bool}
+    "format_payload": bool,
+}
 
 USAGE = """%prog [options]
 
@@ -91,7 +93,8 @@ def _parse_options():
     parser.add_option(
         "-c", "--config",
         dest = "config_path",
-        help = "Path to config file")
+        help = "Path to config file",
+    )
     parser.add_option(
         "-d", "--debug",
         action = "store_true",
@@ -101,7 +104,8 @@ def _parse_options():
         "-f", "--format",
         action="store_true",
         dest = "format",
-        help = "pretty print message flow")
+        help = "pretty print message flow",
+    )
     parser.add_option(
         "-j", "--format-payload",
         action="store_true",
@@ -111,32 +115,38 @@ def _parse_options():
         "-r", "--root",
         dest = "root",
         help = "the root directory of the server; default %s" % (
-                    APP_DEFAULTS["root"]))
+                    APP_DEFAULTS["root"]),
+    )
     parser.add_option(
         "-p", "--proxy-port",
         dest = "proxy_port",
         type="int",
-        help = "proxy port; default %s" % APP_DEFAULTS["proxy_port"])
+        help = "proxy port; default %s" % APP_DEFAULTS["proxy_port"],
+    )
     parser.add_option(
         "-s", "--server-port",
         dest = "server_port",
         type="int",
-        help = "server port; default %s" % APP_DEFAULTS["server_port"])
+        help = "server port; default %s" % APP_DEFAULTS["server_port"],
+    )
     parser.add_option(
         "--host",
         dest = "host",
-        help = "host; default %s" % APP_DEFAULTS["host"])
+        help = "host; default %s" % APP_DEFAULTS["host"],
+    )
     parser.add_option(
         "-i", "--make-ini",
         dest = "make_ini",
         action="store_true",
         default=False,
-        help = "Print a default dragonkeeper.ini and exit")
+        help = "Print a default dragonkeeper.ini and exit",
+    )
     parser.add_option(
         "--force-stp-0",
         action = "store_true",
         dest = "force_stp_0",
-        help = "force stp 0 protocol")
+        help = "force stp 0 protocol",
+    )
     options, args = parser.parse_args()
 
 
