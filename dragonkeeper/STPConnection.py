@@ -4,8 +4,8 @@ import codecs
 from time import time
 from random import randint
 from common import BLANK, BUFFERSIZE
-from HTTPScopeInterface import connections_waiting, scope_messages, scope
-from HTTPScopeInterface import pretty_print_XML, pretty_print
+from httpscopeinterface import connections_waiting, scope_messages, scope
+from httpscopeinterface import pretty_print_XML, pretty_print
 
 
 def encode_varuint(value):

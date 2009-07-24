@@ -1,9 +1,9 @@
 import ConfigParser
 import sys
 import os
-from HTTPScopeInterface import HTTPScopeInterface
-from STPConnection import ScopeConnection
-from SimpleServer import SimpleServer, asyncore
+from httpscopeinterface import HTTPScopeInterface
+from stpconnection import ScopeConnection
+from simpleserver import SimpleServer, asyncore
 from common import Options
 
 CONFIG_FILE = "dragonkeeper.ini"

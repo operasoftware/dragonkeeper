@@ -39,7 +39,7 @@ See also http://dragonfly.opera.com/app/scope-interface for more details.
 """
 
 import re
-import HTTPConnection
+import httpconnection
 from time import time
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT
 from common import NOT_FOUND, BAD_REQUEST, get_timestamp, Singleton
@@ -239,7 +239,7 @@ def pretty_print(prelude, msg, format, format_payload):
         print msg
 
 
-class HTTPScopeInterface(HTTPConnection.HTTPConnection):
+class HTTPScopeInterface(httpconnection.HTTPConnection):
     """To expose a HTTP interface of the scope interface.
 
     The first part of the path is the command name, other parts are arguments.
@@ -372,7 +372,7 @@ class HTTPScopeInterface(HTTPConnection.HTTPConnection):
     )
 
     def __init__(self, conn, addr, context):
-        HTTPConnection.HTTPConnection.__init__(self, conn, addr, context)
+        httpconnection.HTTPConnection.__init__(self, conn, addr, context)
         self.debug = context.debug
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
