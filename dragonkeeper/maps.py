@@ -1,4 +1,4 @@
-﻿# created with opprotoc 
+﻿# created with opprotoc
 
 status_map = {
     0: "OK",
@@ -10,21 +10,21 @@ status_map = {
     6: "Service Not Found",
     7: "Out Of Memory",
     8: "Service Not Enabled",
-    9: "Service Already Enabled",
-    }
+    9: "Service Already Enabled"
+}
 
 format_type_map = {
     0: "protocol-buffer",
     1: "json",
     2: "xml"
-    }
+}
 
 message_type_map = {
-    1: "command", 
-    2: "response", 
-    3: "event", 
+    1: "command",
+    2: "response",
+    3: "event",
     4: "error"
-    }
+}
 
 command_map = {
     "console-logger": {
@@ -793,7 +793,7 @@ command_map = {
                         {
                             "name": "ruleList",
                             "q": "repeated",
-                            "message": "self" 
+                            "message": "self"
                         },
                         {
                             "name": "href",

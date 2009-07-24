@@ -34,9 +34,9 @@ RESPONSE_BASIC = \
 # HTTP/1.1 200 OK
 # Date: %s
 # Server: Dragonkeeper/0.8
-# %sContent-Type: %s  
+# %sContent-Type: %s
 # Content-Length: %s
-# 
+#
 # %s
 
 RESPONSE_OK_CONTENT = RESPONSE_BASIC % (
@@ -46,8 +46,7 @@ RESPONSE_OK_CONTENT = RESPONSE_BASIC % (
     '%s' + \
     'Content-Type: %s' + CRLF + \
     'Content-Length: %s' + 2 * CRLF + \
-    '%s'
-    )
+    '%s')
 
 # NOT_MODIFIED % ( timestamp )
 # HTTP/1.1 304 Not Modified
@@ -58,8 +57,7 @@ NOT_MODIFIED = RESPONSE_BASIC % (
     304,
     'Not Modified',
     '%s',
-    CRLF
-    )
+    CRLF)
 
 # REDIRECT % ( timestamp, uri)
 # HTTP/1.1 301 Moved Permanently
@@ -71,8 +69,7 @@ REDIRECT = RESPONSE_BASIC % (
     301,
     'Moved Permanently',
     '%s',
-    'Location: %s' + 2 * CRLF
-    )
+    'Location: %s' + 2 * CRLF)
 
 # BAD_REQUEST % ( timestamp )
 # HTTP/1.1 400 Bad Request
@@ -83,26 +80,24 @@ BAD_REQUEST = RESPONSE_BASIC % (
     400,
     'Bad Request',
     '%s',
-    2 * CRLF
-    )
+    2 * CRLF)
 
 # NOT_FOUND % ( timestamp, content-length, content )
 # HTTP/1.1 404 NOT FOUND
 # Date: %s
 # Server: Dragonkeeper/0.8
-# Content-Type: text/plain  
+# Content-Type: text/plain
 # Content-Length: %s
-# 
+#
 # %s
 
 NOT_FOUND = RESPONSE_BASIC % (
-    404, 
+    404,
     'NOT FOUND',
     '%s',
     'Content-Type: text/plain' + CRLF + \
     'Content-Length:%s' + 2 * CRLF + \
-    '%s'
-    )
+    '%s')
 
 # The template to create a html directory view
 DIR_VIEW = \
@@ -112,22 +107,22 @@ DIR_VIEW = \
 <head>
 <title> </title>
 <style>
-  body 
+  body
   {
     font-family: "Lucida Sans Unicode", sans-serif;
     font-size: .8em;
   }
-  ul 
+  ul
   {
     list-style: none;
     margin: 0;
     padding: 0;
   }
-  li 
+  li
   {
     padding-left: 0;
   }
-  a 
+  a
   {
     text-decoration: none;
   }
@@ -147,7 +142,7 @@ DIR_VIEW = \
   .file icon
   {
     background-image: -o-skin('Window Document Icon');
-  }   
+  }
 </style>
 </head>
 <body>
@@ -155,62 +150,69 @@ DIR_VIEW = \
 </body>
 </html>
 """
-    
+
 ITEM_DIR = """<li class="directory"><a href="./%s/"><icon></icon>%s</a></li>"""
 ITEM_FILE = """<li class="file"><a href="./%s"><icon></icon>%s</a></li>"""
-
 TIMEOUT = 30
+
 
 def URI_to_system_path(path):
     return path_join(*[unquote(part) for part in path.split('/')])
 
+
 def get_timestamp(path = None):
-    return strftime("%a, %d %b %Y %H:%M:%S GMT", 
+    return strftime("%a, %d %b %Y %H:%M:%S GMT",
                             gmtime(path and stat(path).st_mtime or None))
 
+
 def timestamp_to_time(stamp):
-    """see http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.3.1 
+    """see http://www.w3.org/Protocols/rfc2616/rfc2616-sec3.html#sec3.3.1
     only this format is supported: Fri, 16 Nov 2007 16:09:43 GMT
     from the spec:
-    HTTP applications have historically allowed three different formats 
-    for the representation of date/time stamps: 
+    HTTP applications have historically allowed three different formats
+    for the representation of date/time stamps:
       Sun, 06 Nov 1994 08:49:37 GMT  ; RFC 822, updated by RFC 1123
       Sunday, 06-Nov-94 08:49:37 GMT ; RFC 850, obsoleted by RFC 1036
       Sun Nov  6 08:49:37 1994       ; ANSI C's asctime() format"""
     return timegm(strptime(stamp, "%a, %d %b %Y %H:%M:%S %Z"))
 
+
 class Options(object):
-    #todo: subclass dict
+    #todo: subclass dict or userdict?
     def __init__(self, *args, **kwargs):
         for arg in args:
             for key, val in arg.iteritems():
                 self.__dict__[key]=val
-            
+
     def __getitem__(self, name):
         return self.__dict__[name]
-        
+
     def __getattr__(self, name):
         return self.__dict__[name]
-        
+
     def __setitem__(self, name, value):
         self.__dict__[name]=value
 
     def __setattr__(self, name, value):
         self.__dict__[name]=value
-    
+
     def __delattr__(self, name):
         del self.__dict__[name]
-        
+
     def __deltitem__(self, name):
         del self.__dict__[name]
 
     def __str__(self):
         return str(self.__dict__)
 
+
+# Singleton class taken from
 # http://book.opensourceproject.org.cn/lamp/python/pythoncook2/opensource/0596007973/pythoncook2-chp-6-sect-15.html
+
 class Singleton(object):
-     """ A Pythonic Singleton """
-     def __new__(cls, *args, **kwargs):
-         if '_inst' not in vars(cls):
-             cls._inst = object.__new__(cls, *args, **kwargs)
-         return cls._inst
+    """ A Pythonic Singleton """
+
+    def __new__(cls, *args, **kwargs):
+        if '_inst' not in vars(cls):
+            cls._inst = object.__new__(cls, *args, **kwargs)
+        return cls._inst
