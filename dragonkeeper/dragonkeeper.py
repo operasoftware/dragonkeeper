@@ -6,6 +6,8 @@ from stpconnection import ScopeConnection
 from simpleserver import SimpleServer, asyncore
 from common import Options
 
+
+
 CONFIG_FILE = "dragonkeeper.ini"
 
 APP_DEFAULTS = {

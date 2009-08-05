@@ -21,7 +21,7 @@ CRLF = '\r\n'
 BLANK = ' '
 BUFFERSIZE = 8192
 RE_HEADER = re.compile(": *")
-SOURCE_ROOT = os.getcwd()
+SOURCE_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 RESPONSE_BASIC = \
     'HTTP/1.1 %s %s' + CRLF + \
