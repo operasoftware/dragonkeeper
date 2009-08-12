@@ -75,6 +75,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.uuid = str(randint(100, 10000000) + int(time() * 1000))
         self.STP1_PB_CLIENT_ID = ""
         self.varint = 0
+        self._service_list = None
         scope.set_connection(self)
 
     # ============================================================
@@ -138,7 +139,9 @@ class ScopeConnection(asyncore.dispatcher):
                 if not self.force_stp_0 and 'stp-1' in services:
                     self.set_initializer_STP_1()
                     self.send_command_STP_0('*enable stp-1')
-                scope.set_service_list(services)
+                    self._service_list = services
+                else:
+                    scope.set_service_list(services)
                 for service in services:
                     scope.services_enabled[service] = False
             elif command in scope.services_enabled:
@@ -271,6 +274,8 @@ class ScopeConnection(asyncore.dispatcher):
         if self.in_buffer.startswith("STP/1\n"):
             self.in_buffer = self.in_buffer[6:]
             scope.set_STP_version('stp-1')
+            scope.set_service_list(self._service_list)
+            self._service_list = None
             self.handle_read = self.handle_read_STP_1
             self.check_input = self.read_stp1_token
             self.handle_stp1_msg = self.handle_stp1_msg_default
