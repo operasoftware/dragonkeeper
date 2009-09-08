@@ -531,19 +531,28 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         if not sender == self:
             self.handle_write()
 
+    def timeouthandler(self):
+        if self in connections_waiting:
+            connections_waiting.remove(self)
+            if not self.command in ["get_message", "scope_message"]:
+                print ">>> failed, wrong connection type in queue"
+            self.out_buffer += self.RESPONSE_TIMEOUT % get_timestamp()
+        else:
+            self.out_buffer += NOT_FOUND % (get_timestamp(), 0, '')
+        self.timeout = 0
+    
+    def flush(self):
+        if self.timeout:
+            self.timeouthandler()
+            
+        
+
     # ============================================================
     # Implementations of the asyncore.dispatcher class methods
     # ============================================================
     def writable(self):
         if self.timeout and time() > self.timeout and not self.out_buffer:
-            if self in connections_waiting:
-                connections_waiting.remove(self)
-                if not self.command in ["get_message", "scope_message"]:
-                    print ">>> failed, wrong connection type in queue"
-                self.out_buffer += self.RESPONSE_TIMEOUT % get_timestamp()
-            else:
-                self.out_buffer += NOT_FOUND % (get_timestamp(), 0, '')
-            self.timeout = 0
+            self.timeouthandler()
         return bool(self.out_buffer)
 
     def handle_close(self):

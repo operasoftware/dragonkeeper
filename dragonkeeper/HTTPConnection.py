@@ -29,6 +29,8 @@ class HTTPConnection(asyncore.dispatcher):
 
     def read_headers(self):
         if 2*CRLF in self.in_buffer:
+            # to dispatch any hanging timeout response
+            self.flush()
             headers_raw, self.in_buffer = self.in_buffer.split(2*CRLF, 1)
             first_line, headers_raw = headers_raw.split(CRLF, 1)
             method, path, protocol = first_line.split(BLANK, 2)
@@ -170,7 +172,11 @@ class HTTPConnection(asyncore.dispatcher):
                 len(content),
                 content)
             self.timeout = 0
-
+    # ============================================================
+    # 
+    # ============================================================
+    def flush(self):
+        pass
     # ============================================================
     # Implementations of the asyncore.dispatcher class methods
     # ============================================================
