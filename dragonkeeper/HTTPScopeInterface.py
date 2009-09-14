@@ -89,7 +89,7 @@ class Scope(Singleton):
                 self._http_connection = http_connection
                 self._connection.connect_client(self._connect_callback)
             else:
-                _http_connection.return_service_list(self._service_list)
+                http_connection.return_service_list(self._service_list)
         else:
             print "Unsupported version in scope.return_service_list(conn)"
 
@@ -106,6 +106,7 @@ class Scope(Singleton):
         self._service_list = []
         self.send_command = self.empty_call
         self.services_enabled = {}
+        self._connection = None
 
     def _connect_callback(self):
         self._http_connection.return_service_list(self._service_list)
@@ -461,7 +462,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
             is_ok = True
         else:
             service = self.arguments[0]
-            if scope.services_enabled[service]:
+            if service in scope.services_enabled:
                 if not raw_data.startswith("<?xml") and \
                      not raw_data.startswith("STP/1"):
                     raw_data = XML_PRELUDE % raw_data
@@ -469,7 +470,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
                 scope.send_command(msg)
                 is_ok = True
             else:
-                print "tried to send a command before the service was enabled"
+                print "tried to send a command before %s was enabled" % service
         self.out_buffer += (is_ok and
                             self.RESPONSE_OK_OK or
                             BAD_REQUEST) % get_timestamp()
