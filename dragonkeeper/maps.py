@@ -1,4 +1,7 @@
-﻿# created with opprotoc
+﻿# Copyright (c) 2008, Opera Software ASA
+# license see LICENSE.
+
+# created with opprotoc
 
 status_map = {
     0: "OK",

@@ -1,3 +1,6 @@
+# Copyright (c) 2008, Opera Software ASA
+# license see LICENSE.
+
 import ConfigParser
 import sys
 import os

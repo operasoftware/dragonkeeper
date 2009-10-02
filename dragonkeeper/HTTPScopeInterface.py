@@ -1,3 +1,6 @@
+# Copyright (c) 2008, Opera Software ASA
+# license see LICENSE.
+
 """Overview:
 
 The proxy / server is build as an extension of the asyncore.dispatcher class.
