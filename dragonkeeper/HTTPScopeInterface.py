@@ -46,6 +46,7 @@ import httpconnection
 from time import time
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT
 from common import NOT_FOUND, BAD_REQUEST, get_timestamp, Singleton
+# from common import pretty_dragonfly_snapshot
 from maps import status_map, format_type_map, message_type_map, command_map
 
 # the two queues
@@ -477,6 +478,20 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         self.out_buffer += (is_ok and
                             self.RESPONSE_OK_OK or
                             BAD_REQUEST) % get_timestamp()
+        self.timeout = 0
+
+    def snapshot(self):
+        """store a markup snapshot"""
+        raw_data = self.raw_post_data
+        if raw_data:
+            name, data = raw_data.split(CRLF, 1)
+            f = open(name + ".xml", 'wb')
+            # f.write(pretty_dragonfly_snapshot(data))
+            data = data.replace("'=\"\"", "")
+            data = re.sub(r'<script(?:[^/>]|/[^>])*/>[ \r\n]*', '', data)
+            f.write(data.replace("'=\"\"", ""))
+            f.close()
+        self.out_buffer += self.RESPONSE_OK_OK % get_timestamp()
         self.timeout = 0
 
     # ============================================================
