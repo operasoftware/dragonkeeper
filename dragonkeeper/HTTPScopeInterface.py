@@ -49,6 +49,8 @@ from common import NOT_FOUND, BAD_REQUEST, get_timestamp, Singleton
 # from common import pretty_dragonfly_snapshot
 from maps import status_map, format_type_map, message_type_map, command_map
 
+test_command_map = {}
+
 # the two queues
 connections_waiting = []
 scope_messages = []
@@ -113,10 +115,150 @@ class Scope(Singleton):
         self._connection = None
 
     def _connect_callback(self):
-        self._http_connection.return_service_list(self._service_list)
-        self._http_connection = None
+        if test_command_map:
+            self._http_connection.return_service_list(self._service_list)
+            self._http_connection = None
+        else:
+            CommandMap(self._service_list, test_command_map, 
+                                self._connection, self._connect_callback)
 
 scope = Scope()
+
+MSG_KEY_TYPE = 0
+MSG_KEY_SERVICE = 1
+MSG_KEY_COMMAND_ID = 2
+MSG_KEY_FORMAT = 3
+MSG_KEY_STATUS = 4
+MSG_KEY_TAG = 5
+MSG_KEY_CLIENT_ID = 6
+MSG_KEY_UUID = 7
+MSG_KEY_PAYLOAD = 8
+MSG_VALUE_COMMAND = 1
+MSG_VALUE_FORMAT_JSON = 1
+
+class TagManager(Singleton):
+
+    def __init__(self):
+        self._counter = 1
+        self._tags = {}
+    
+    def _get_empty_tag(self):
+        tag = 1
+        while True:
+            if not tag in self._tags:
+                break
+            tag += 1
+        return tag
+
+    def set_callback(self, callback, args={}):
+        tag = self._get_empty_tag()
+        self._tags[tag] = (callback, args)
+        return tag
+
+    def handle_message(self, msg):
+        if msg[MSG_KEY_TAG] in self._tags:
+            callback, args = self._tags[msg[MSG_KEY_TAG]]
+            callback(msg, **args)
+            return True
+        return False
+        
+tag_manager = TagManager()
+
+
+class CommandMap(object):
+
+    COMMAND_INFO = 7
+    COMMAND_MESSAGE_INFO = 11
+    MESSAGE_STATUS = 4
+    MESSAGE_PAYLOAD = 8
+    
+    def __init__(self, services, map, connection, callback):
+        self._services = services
+        self._services_parsed = {}
+        self._map = map
+        self._connection = connection
+        self._callback = callback
+        self._connection.set_msg_handler(self.default_msg_handler)
+        self.get_command_map()
+
+    def default_msg_handler(self, msg):
+        if not tag_manager.handle_message(msg):
+            pretty_print(
+                "handling of message failed in default_msg_handler in CommandMap:", 
+                msg, 1, 0) 
+
+    def check_command_map_complete(self):
+        all_parsed = True
+        for service in self._services_parsed:
+            if not self._services_parsed[service]['parsed']:
+                all_parsed = False
+                break
+        return all_parsed
+                
+    def get_commands(self, service, tag):
+        self._connection.send_command_STP_1({
+            MSG_KEY_TYPE: MSG_VALUE_COMMAND,
+            MSG_KEY_SERVICE: "scope",
+            MSG_KEY_COMMAND_ID: self.COMMAND_INFO,
+            MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
+            MSG_KEY_TAG: tag,
+            MSG_KEY_PAYLOAD: '["%s"]' % service
+            })
+
+    def handle_commands(self, msg, service):
+        if not msg[self.MESSAGE_STATUS] and service in self._services_parsed:
+            self._services_parsed[service]['raw_commands'] = msg[self.MESSAGE_PAYLOAD]
+            tag = tag_manager.set_callback(self.handle_messages, {'service': service})
+            self.get_messages(service, tag)
+        else:
+            pretty_print(
+                "handling of message failed in handle_commands in CommandMap:", 
+                msg, 1, 0)
+
+    def get_messages(self, service, tag):
+        self._connection.send_command_STP_1({
+            MSG_KEY_TYPE: MSG_VALUE_COMMAND,
+            MSG_KEY_SERVICE: "scope",
+            MSG_KEY_COMMAND_ID: self.COMMAND_MESSAGE_INFO,
+            MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
+            MSG_KEY_TAG: tag,
+            MSG_KEY_PAYLOAD: '["%s", [], 0, 1]' % service
+            }) 
+
+    def handle_messages(self, msg, service):
+        if not msg[self.MESSAGE_STATUS] and service in self._services_parsed:
+            self._services_parsed[service]['raw_messages'] = msg[self.MESSAGE_PAYLOAD]
+            # self parse raw info
+            self._services_parsed[service]['parsed'] = True
+            # print service 
+            # pretty_print("msg:", msg, 1, 0) 
+            if self.check_command_map_complete():
+                # print "all parsed"       
+                self._connection.clear_msg_handler()
+                self._map['test'] = True
+                self._callback()
+                self._services = None
+                self._services_parsed = None
+                self._map = None
+                self._connection = None
+                self._callback = None
+        else:
+            pretty_print(
+                "handling of message failed in handle_messages in CommandMap:", 
+                msg, 1, 0)
+
+    def get_command_map(self):
+        for service in self._services:
+            if not service.startswith('core-') and not service.startswith('stp-'):
+                self._services_parsed[service] = {
+                    'parsed': False,
+                    'raw_commands': None,
+                    'raw_messages': None
+                    }
+                tag = tag_manager.set_callback(self.handle_commands, 
+                                    {"service": service})
+
+                self.get_commands(service, tag)
 
 
 def pretty_print_XML(in_string):

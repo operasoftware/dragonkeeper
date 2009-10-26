@@ -81,6 +81,9 @@ class ScopeConnection(asyncore.dispatcher):
         self._service_list = None
         scope.set_connection(self)
 
+        self._msg_count = 0
+        self._last_time = 0
+
     # ============================================================
     # STP 0
     # ============================================================
@@ -131,6 +134,15 @@ class ScopeConnection(asyncore.dispatcher):
     def read_msg_STP_0(self):
         """read length STP 0 message"""
         if len(self.in_buffer) >= self.msg_length:
+            """
+            t = int(1000*time())
+            if t - self._last_time > 1000:
+                print self._msg_count
+                self._msg_count = 0
+                self._last_time = t
+            else:
+                self._msg_count += 1
+            """
             command, msg = self.in_buffer[0:self.msg_length].split(BLANK, 1)
             self.in_buffer = self.in_buffer[self.msg_length:]
             self.msg_length = 0
@@ -284,6 +296,12 @@ class ScopeConnection(asyncore.dispatcher):
             self.handle_stp1_msg = self.handle_stp1_msg_default
             if self.in_buffer:
                 self.check_input()
+
+    def set_msg_handler(self, handler):
+        self.handle_stp1_msg = handler
+
+    def clear_msg_handler(self):
+        self.handle_stp1_msg = self.handle_stp1_msg_default
 
     def connect_client(self, callback):
         self.connect_client_callback = callback

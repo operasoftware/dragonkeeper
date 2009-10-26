@@ -1,7 +1,4 @@
-﻿# Copyright (c) 2008, Opera Software ASA
-# license see LICENSE.
-
-# created with opprotoc
+﻿# created with opprotoc 
 
 status_map = {
     0: "OK",
@@ -14,20 +11,20 @@ status_map = {
     7: "Out Of Memory",
     8: "Service Not Enabled",
     9: "Service Already Enabled",
-}
+    }
 
 format_type_map = {
     0: "protocol-buffer",
     1: "json",
-    2: "xml",
-}
+    2: "xml"
+    }
 
 message_type_map = {
-    1: "command",
-    2: "response",
-    3: "event",
-    4: "error",
-}
+    1: "command", 
+    2: "response", 
+    3: "event", 
+    4: "error"
+    }
 
 command_map = {
     "console-logger": {
@@ -796,7 +793,7 @@ command_map = {
                         {
                             "name": "ruleList",
                             "q": "repeated",
-                            "message": "self"
+                            "message": "self" 
                         },
                         {
                             "name": "href",
@@ -970,6 +967,17 @@ command_map = {
                     ],
 
                 },
+            ],
+
+            # response message
+            2: [
+            ],
+
+        },
+        29: {
+            "name": "ReleaseObjects",
+            # command message
+            1: [
             ],
 
             # response message
@@ -1321,29 +1329,103 @@ command_map = {
                     "name": "windowID",
                     "q": "optional",
                 },
+                {
+                    "name": "colorSpecList",
+                    "q": "repeated",
+                    "message": [
+                        {
+                            "name": "id",
+                            "q": "required",
+                        },
+                        {
+                            "name": "redLow",
+                            "q": "optional",
+                        },
+                        {
+                            "name": "redHigh",
+                            "q": "optional",
+                        },
+                        {
+                            "name": "greenLow",
+                            "q": "optional",
+                        },
+                        {
+                            "name": "greenHigh",
+                            "q": "optional",
+                        },
+                        {
+                            "name": "blueLow",
+                            "q": "optional",
+                        },
+                        {
+                            "name": "blueHigh",
+                            "q": "optional",
+                        },
+                    ],
+
+                },
+                {
+                    "name": "includeImage",
+                    "q": "optional",
+                },
             ],
 
             # response message
             2: [
-            ],
-
-        },
-        4: {
-            "name": "OnScreenWatcherEvent",
-            # event message
-            3: [
                 {
                     "name": "windowID",
                     "q": "required",
                 },
                 {
                     "name": "md5",
-                    "q": "optional",
+                    "q": "required",
                 },
                 {
                     "name": "png",
                     "q": "optional",
                 },
+                {
+                    "name": "colorMatchList",
+                    "q": "repeated",
+                    "message": [
+                        {
+                            "name": "id",
+                            "q": "required",
+                        },
+                        {
+                            "name": "count",
+                            "q": "required",
+                        },
+                    ],
+
+                },
+            ],
+
+        },
+        5: {
+            "name": "SendMouseAction",
+            # command message
+            1: [
+                {
+                    "name": "windowID",
+                    "q": "required",
+                },
+                {
+                    "name": "x",
+                    "q": "required",
+                },
+                {
+                    "name": "y",
+                    "q": "required",
+                },
+                {
+                    "name": "buttonAction",
+                    "q": "required",
+                },
+            ],
+
+            # response message
+            2: [
             ],
 
         },
@@ -1390,23 +1472,6 @@ command_map = {
                 },
                 {
                     "name": "header",
-                    "q": "required",
-                },
-            ],
-
-        },
-    },
-    "probedata-server": {
-        1: {
-            "name": "AllData",
-            # command message
-            1: [
-            ],
-
-            # response message
-            2: [
-                {
-                    "name": "data",
                     "q": "required",
                 },
             ],
@@ -1514,6 +1579,14 @@ command_map = {
                             "name": "number",
                             "q": "required",
                         },
+                        {
+                            "name": "messageID",
+                            "q": "required",
+                        },
+                        {
+                            "name": "responseID",
+                            "q": "required",
+                        },
                     ],
 
                 },
@@ -1527,6 +1600,10 @@ command_map = {
                         },
                         {
                             "name": "number",
+                            "q": "required",
+                        },
+                        {
+                            "name": "messageID",
                             "q": "required",
                         },
                     ],
@@ -1600,6 +1677,79 @@ command_map = {
             ],
 
         },
+        11: {
+            "name": "MessageInfo",
+            # command message
+            1: [
+                {
+                    "name": "serviceName",
+                    "q": "required",
+                },
+                {
+                    "name": "idList",
+                    "q": "repeated",
+                },
+                {
+                    "name": "includeRelated",
+                    "q": "optional",
+                },
+                {
+                    "name": "includeAll",
+                    "q": "optional",
+                },
+            ],
+
+            # response message
+            2: [
+                {
+                    "name": "messageList",
+                    "q": "repeated",
+                    "message": [
+                        {
+                            "name": "id",
+                            "q": "required",
+                        },
+                        {
+                            "name": "name",
+                            "q": "required",
+                        },
+                        {
+                            "name": "fieldList",
+                            "q": "repeated",
+                            "message": [
+                                {
+                                    "name": "name",
+                                    "q": "required",
+                                },
+                                {
+                                    "name": "type",
+                                    "q": "required",
+                                },
+                                {
+                                    "name": "number",
+                                    "q": "required",
+                                },
+                                {
+                                    "name": "quantifier",
+                                    "q": "optional",
+                                },
+                                {
+                                    "name": "messageID",
+                                    "q": "optional",
+                                },
+                            ],
+
+                        },
+                        {
+                            "name": "parentID",
+                            "q": "optional",
+                        },
+                    ],
+
+                },
+            ],
+
+        },
         0: {
             "name": "OnServices",
             # event message
@@ -1631,72 +1781,6 @@ command_map = {
             3: [
                 {
                     "name": "description",
-                    "q": "required",
-                },
-            ],
-
-        },
-    },
-    "url-player": {
-        1: {
-            "name": "CreateWindows",
-            # command message
-            1: [
-                {
-                    "name": "windowCount",
-                    "q": "required",
-                },
-            ],
-
-            # response message
-            2: [
-                {
-                    "name": "windowCount",
-                    "q": "required",
-                },
-            ],
-
-        },
-        2: {
-            "name": "LoadUrl",
-            # command message
-            1: [
-                {
-                    "name": "windowNumber",
-                    "q": "required",
-                },
-                {
-                    "name": "url",
-                    "q": "required",
-                },
-            ],
-
-            # response message
-            2: [
-                {
-                    "name": "windowID",
-                    "q": "required",
-                },
-            ],
-
-        },
-        3: {
-            "name": "OnUrlLoaded",
-            # event message
-            3: [
-                {
-                    "name": "windowID",
-                    "q": "required",
-                },
-            ],
-
-        },
-        4: {
-            "name": "OnConnectionFailed",
-            # event message
-            3: [
-                {
-                    "name": "windowID",
                     "q": "required",
                 },
             ],
@@ -1820,6 +1904,17 @@ command_map = {
         },
         6: {
             "name": "OnWindowActivated",
+            # event message
+            3: [
+                {
+                    "name": "windowID",
+                    "q": "required",
+                },
+            ],
+
+        },
+        7: {
+            "name": "OnWindowLoaded",
             # event message
             3: [
                 {
