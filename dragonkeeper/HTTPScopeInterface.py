@@ -119,8 +119,8 @@ class Scope(Singleton):
             self._http_connection.return_service_list(self._service_list)
             self._http_connection = None
         else:
-            CommandMap(self._service_list, test_command_map, 
-                                self._connection, self._connect_callback)
+            CommandMap(self._service_list, test_command_map, self._connection, 
+                self._connect_callback, self._http_connection.print_command_map)
 
 scope = Scope()
 
@@ -146,10 +146,9 @@ class TagManager(Singleton):
         tag = 1
         while True:
             if not tag in self._tags:
-                break
+                return tag
             tag += 1
-        return tag
-
+        
     def set_callback(self, callback, args={}):
         tag = self._get_empty_tag()
         self._tags[tag] = (callback, args)
@@ -157,7 +156,7 @@ class TagManager(Singleton):
 
     def handle_message(self, msg):
         if msg[MSG_KEY_TAG] in self._tags:
-            callback, args = self._tags[msg[MSG_KEY_TAG]]
+            callback, args = self._tags.pop(msg[MSG_KEY_TAG])
             callback(msg, **args)
             return True
         return False
@@ -172,12 +171,13 @@ class CommandMap(object):
     MESSAGE_STATUS = 4
     MESSAGE_PAYLOAD = 8
     
-    def __init__(self, services, map, connection, callback):
+    def __init__(self, services, map, connection, callback, print_map):
         self._services = services
         self._services_parsed = {}
         self._map = map
         self._connection = connection
         self._callback = callback
+        self._print_map = print_map
         self._connection.set_msg_handler(self.default_msg_handler)
         self.get_command_map()
 
@@ -188,12 +188,10 @@ class CommandMap(object):
                 msg, 1, 0) 
 
     def check_command_map_complete(self):
-        all_parsed = True
         for service in self._services_parsed:
             if not self._services_parsed[service]['parsed']:
-                all_parsed = False
-                break
-        return all_parsed
+                return False
+        return True
                 
     def get_commands(self, service, tag):
         self._connection.send_command_STP_1({
@@ -207,9 +205,15 @@ class CommandMap(object):
 
     def handle_commands(self, msg, service):
         if not msg[self.MESSAGE_STATUS] and service in self._services_parsed:
-            self._services_parsed[service]['raw_commands'] = msg[self.MESSAGE_PAYLOAD]
-            tag = tag_manager.set_callback(self.handle_messages, {'service': service})
-            self.get_messages(service, tag)
+            command_list = None
+            try:
+                command_list = eval(msg[self.MESSAGE_PAYLOAD].replace("null", "None"))
+            except:
+                print "evaling message failed in handle_commands in CommandMap"
+            if command_list:
+                self._services_parsed[service]['raw_commands'] = command_list
+                tag = tag_manager.set_callback(self.handle_messages, {'service': service})
+                self.get_messages(service, tag)
         else:
             pretty_print(
                 "handling of message failed in handle_commands in CommandMap:", 
@@ -222,26 +226,33 @@ class CommandMap(object):
             MSG_KEY_COMMAND_ID: self.COMMAND_MESSAGE_INFO,
             MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
             MSG_KEY_TAG: tag,
-            MSG_KEY_PAYLOAD: '["%s", [], 0, 1]' % service
-            }) 
+            MSG_KEY_PAYLOAD: '["%s", [], 1, 1]' % service
+            })
+
+
 
     def handle_messages(self, msg, service):
         if not msg[self.MESSAGE_STATUS] and service in self._services_parsed:
-            self._services_parsed[service]['raw_messages'] = msg[self.MESSAGE_PAYLOAD]
-            # self parse raw info
-            self._services_parsed[service]['parsed'] = True
-            # print service 
-            # pretty_print("msg:", msg, 1, 0) 
-            if self.check_command_map_complete():
-                # print "all parsed"       
-                self._connection.clear_msg_handler()
-                self._map['test'] = True
-                self._callback()
-                self._services = None
-                self._services_parsed = None
-                self._map = None
-                self._connection = None
-                self._callback = None
+            message_list = None
+            try:
+                message_list = eval(msg[self.MESSAGE_PAYLOAD].replace("null", "None"))
+            except:
+                print "evaling message failed in handle_messages in CommandMap"
+            if message_list:
+                self._services_parsed[service]['raw_messages'] = message_list
+                self.parse_raw_lists(service)
+                self._services_parsed[service]['parsed'] = True
+                if self.check_command_map_complete():
+                    if self._print_map:
+                        print test_command_map
+                    self._connection.clear_msg_handler()
+                    self._map['test'] = True
+                    self._callback()
+                    self._services = None
+                    self._services_parsed = None
+                    self._map = None
+                    self._connection = None
+                    self._callback = None
         else:
             pretty_print(
                 "handling of message failed in handle_messages in CommandMap:", 
@@ -257,8 +268,75 @@ class CommandMap(object):
                     }
                 tag = tag_manager.set_callback(self.handle_commands, 
                                     {"service": service})
-
                 self.get_commands(service, tag)
+
+    # message parsing
+
+    def get_msg(self, list, id):
+        MSG_ID = 0
+        for msg in list:
+            if msg[MSG_ID] == id:
+                return msg
+        return None
+            
+    def parse_msg(self, msg, msg_list, parsed_list):
+        NAME = 1
+        FIELD_LIST = 2
+        FIELD_NAME = 0
+        FIELD_TYPE = 1
+        FIELD_NUMBER = 2
+        FIELD_Q = 3
+        FIELD_ID = 4
+        Q_MAP = {
+            0: "required",
+            1: "optional",
+            2: "repeated"
+            }
+        ret = []
+        if msg:
+            for field in msg[FIELD_LIST]:
+                name = field[FIELD_NAME]
+                if name in parsed_list:
+                    return parsed_list[name]
+                field_obj = {'name': name}
+                field_obj['q'] = "required"
+                if (len(field) - 1) >= FIELD_Q and field[FIELD_Q]:
+                    field_obj['q'] = Q_MAP[field[FIELD_Q]]
+                if (len(field) - 1) >= FIELD_ID:
+                    parsed_list[name] = field_obj
+                    msg = self.get_msg(msg_list, field[FIELD_ID])
+                    field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list)
+                ret.append(field_obj)
+        return ret
+
+    def parse_raw_lists(self, service):
+        MSG_TYPE_COMMAND = 1
+        MSG_TYPE_RESPONSE = 2
+        MSG_TYPE_EVENT = 3
+        # Command Info
+        COMMAND_LIST = 0
+        NAME = 0
+        NUMBER = 1 
+        MESSAGE_ID = 2
+        RESPONSE_ID = 3
+        # Command MessageInfo
+        MSG_LIST = 0
+        MSG_ID = 0
+        command_list = self._services_parsed[service]['raw_commands'][COMMAND_LIST]
+        raw_msgs = self._services_parsed[service]['raw_messages'][MSG_LIST]
+        map = self._map[service] = {}
+        for command in command_list:
+            command_obj = map[command[NUMBER]] = {}
+            command_obj['name'] = command[NAME]
+            # workaround for missing event list
+            if command[NAME].lower().startswith('on'):
+                msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
+                command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {})
+            else:
+                msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
+                command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {})
+                msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
+                command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {})
 
 
 def pretty_print_XML(in_string):
@@ -523,6 +601,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         self.debug = context.debug
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
+        self.print_command_map = context.print_command_map
         # for backward compatibility
         self.scope_message = self.get_message
         self.send_command = self.post_command

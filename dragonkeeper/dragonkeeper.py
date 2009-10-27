@@ -22,6 +22,7 @@ APP_DEFAULTS = {
     "format": False,
     "force_stp_0": False,
     "format_payload": False,
+    "print_command_map": False,
 }
 
 DEFAULT_TYPES = {
@@ -33,6 +34,7 @@ DEFAULT_TYPES = {
     "format": bool,
     "force_stp_0": bool,
     "format_payload": bool,
+    "print_command_map": bool,
 }
 
 USAGE = """%prog [options]
@@ -151,6 +153,12 @@ def _parse_options():
         action = "store_true",
         dest = "force_stp_0",
         help = "force stp 0 protocol",
+    )
+    parser.add_option(
+        "--print-command-map",
+        action = "store_true",
+        dest = "print_command_map",
+        help = "print the command map",
     )
     options, args = parser.parse_args()
 
