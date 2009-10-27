@@ -26,7 +26,8 @@ message_type_map = {
     4: "error"
     }
 
-command_map = {
+command_map = {}
+command_map_backup = {
     "console-logger": {
         1: {
             "name": "OnConsoleMessage",

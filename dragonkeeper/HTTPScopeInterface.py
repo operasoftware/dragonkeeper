@@ -115,11 +115,11 @@ class Scope(Singleton):
         self._connection = None
 
     def _connect_callback(self):
-        if test_command_map:
+        if command_map:
             self._http_connection.return_service_list(self._service_list)
             self._http_connection = None
         else:
-            CommandMap(self._service_list, test_command_map, self._connection, 
+            CommandMap(self._service_list, command_map, self._connection, 
                 self._connect_callback, self._http_connection.print_command_map)
 
 scope = Scope()
@@ -170,6 +170,7 @@ class CommandMap(object):
     COMMAND_MESSAGE_INFO = 11
     MESSAGE_STATUS = 4
     MESSAGE_PAYLOAD = 8
+    INDENT = "    "
     
     def __init__(self, services, map, connection, callback, print_map):
         self._services = services
@@ -244,7 +245,7 @@ class CommandMap(object):
                 self._services_parsed[service]['parsed'] = True
                 if self.check_command_map_complete():
                     if self._print_map:
-                        print test_command_map
+                        print self.pretty_print_map()
                     self._connection.clear_msg_handler()
                     self._map['test'] = True
                     self._callback()
@@ -296,16 +297,19 @@ class CommandMap(object):
         if msg:
             for field in msg[FIELD_LIST]:
                 name = field[FIELD_NAME]
-                if name in parsed_list:
-                    return parsed_list[name]
                 field_obj = {'name': name}
                 field_obj['q'] = "required"
                 if (len(field) - 1) >= FIELD_Q and field[FIELD_Q]:
                     field_obj['q'] = Q_MAP[field[FIELD_Q]]
                 if (len(field) - 1) >= FIELD_ID:
-                    parsed_list[name] = field_obj
-                    msg = self.get_msg(msg_list, field[FIELD_ID])
-                    field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list)
+                    if not name in parsed_list:
+                        parsed_list[name] = field_obj
+                        msg = self.get_msg(msg_list, field[FIELD_ID])
+                        field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list)
+                    else:
+                        field_obj['message'] = {'recursive': parsed_list[name]}
+
+                    
                 ret.append(field_obj)
         return ret
 
@@ -337,6 +341,80 @@ class CommandMap(object):
                 command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {})
                 msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
                 command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {})
+
+
+    """
+    command_map = {
+        "console-logger": {
+            1: {
+                "name": "OnConsoleMessage",
+                # event message
+                3: [
+                    {
+                        "name": "windowID",
+                        "q": "required",
+                    },
+                    {
+                        "name": "time",
+                        "q": "required",
+                    },
+                    {
+                        "name": "description",
+                        "q": "required",
+                    },
+                    {
+    """
+
+    def pretty_print_fields(self, fields, indent):
+        ret = []
+        for field in fields:
+            ret.append('%s{' % (indent * CommandMap.INDENT))
+            indent += 1
+            ret.append('%s"name": "%s",' % (indent * CommandMap.INDENT, field['name']))
+            ret.append('%s"q": "%s",' % (indent * CommandMap.INDENT, field['q']))
+            if "message" in field:
+                if 'recursive' in field['message']:
+                    ret.append('%s"message": <recursive reference>,' % (
+                        indent * CommandMap.INDENT))
+                else:
+                    ret.append('%s"message": [' % (indent * CommandMap.INDENT))
+                    ret.extend(self.pretty_print_fields(field['message'], indent + 1))
+                    ret.append('%s],' % (indent * CommandMap.INDENT))
+            indent -= 1
+            ret.append('%s},' % (indent * CommandMap.INDENT))
+        return ret
+
+    def pretty_print_message(self, message, indent):
+        ret = []
+        ret.append('%s"name": "%s",' % (indent * CommandMap.INDENT , message['name']))
+        for key in [1, 2, 3]:
+            if key in message:
+                ret.append('%s%s: [' % (indent * CommandMap.INDENT , key))
+                ret.extend(self.pretty_print_fields(message[key], indent + 1))
+                ret.append('%s],' % (indent * CommandMap.INDENT))
+        return ret
+
+    def pretty_print_commands(self, commands, indent):
+        ret = []
+        keys = commands.keys()
+        keys.sort()
+        for key in keys:
+            ret.append('%s%s: {' % (indent * CommandMap.INDENT , key))
+            ret.extend(self.pretty_print_message(commands[key], indent + 1))
+            ret.append('%s},' % (indent * CommandMap.INDENT))
+        return ret
+            
+            
+    def pretty_print_map(self):
+        indent = 1
+        map = self._map
+        ret = []
+        ret.append('{')
+        for service in map:
+            ret.append('%s"%s": {' % (indent * CommandMap.INDENT , service))
+            ret.extend(self.pretty_print_commands(map[service], indent + 1))
+            ret.append('%s},' % (indent * CommandMap.INDENT))
+        return "\n".join(ret)
 
 
 def pretty_print_XML(in_string):
@@ -396,7 +474,7 @@ def pretty_print_payload(payload, definitions, indent=2):
     INDENT = "  "
     ret = []
     type_str = type("")
-    # TODO message: self
+    # TODO message: <recursive reference>
     if definitions:
         for item, definition in zip(payload, definitions):
             if definition["q"] == "repeated":
@@ -457,7 +535,8 @@ def pretty_print(prelude, msg, format, format_payload):
                 print "  payload:"
                 print pretty_print_payload(payload, command.get(msg[0], None)), '\n'
             except Exception, e:
-                print "\n".join([">>>>>>>", e, msg[8]])
+                print ">>>>>>>>>>>>"
+                print "\n".join([">>>>>>>", str(e), msg[8]])
         else:
             print "  payload:", msg[8], "\n"
     else:
