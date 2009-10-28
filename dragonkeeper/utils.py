@@ -1,5 +1,6 @@
+import re
 from common import Singleton
-from maps import status_map, format_type_map, message_type_map, command_map
+from maps import status_map, format_type_map, message_type_map, message_map
 
 MSG_KEY_TYPE = 0
 MSG_KEY_SERVICE = 1
@@ -41,15 +42,20 @@ class TagManager(Singleton):
 tag_manager = TagManager()
 
 
-class CommandMap(object):
-
+class MessageMap(object):
+    """ to create a description map of all messages 
+    to be used to pretty print the payloads by adding the keys to all values"""
     COMMAND_INFO = 7
     COMMAND_MESSAGE_INFO = 11
     MESSAGE_STATUS = 4
     MESSAGE_PAYLOAD = 8
     INDENT = "    "
+
+    @staticmethod
+    def has_map():
+        return bool(message_map)
     
-    def __init__(self, services, map, connection, callback, print_map):
+    def __init__(self, services, connection, callback, print_map, map=message_map):
         self._services = services
         self._services_parsed = {}
         self._map = map
@@ -57,15 +63,17 @@ class CommandMap(object):
         self._callback = callback
         self._print_map = print_map
         self._connection.set_msg_handler(self.default_msg_handler)
-        self.get_command_map()
+        self.get_message_map()
+
+    # getting the messages from scope
 
     def default_msg_handler(self, msg):
         if not tag_manager.handle_message(msg):
             pretty_print(
-                "handling of message failed in default_msg_handler in CommandMap:", 
+                "handling of message failed in default_msg_handler in MessageMap:", 
                 msg, 1, 0) 
-
-    def check_command_map_complete(self):
+    
+    def check_message_map_complete(self):
         for service in self._services_parsed:
             if not self._services_parsed[service]['parsed']:
                 return False
@@ -87,14 +95,14 @@ class CommandMap(object):
             try:
                 command_list = eval(msg[self.MESSAGE_PAYLOAD].replace("null", "None"))
             except:
-                print "evaling message failed in handle_commands in CommandMap"
+                print "evaling message failed in handle_commands in MessageMap"
             if command_list:
                 self._services_parsed[service]['raw_commands'] = command_list
                 tag = tag_manager.set_callback(self.handle_messages, {'service': service})
                 self.get_messages(service, tag)
         else:
             pretty_print(
-                "handling of message failed in handle_commands in CommandMap:", 
+                "handling of message failed in handle_commands in MessageMap:", 
                 msg, 1, 0)
 
     def get_messages(self, service, tag):
@@ -113,19 +121,19 @@ class CommandMap(object):
             try:
                 message_list = eval(msg[self.MESSAGE_PAYLOAD].replace("null", "None"))
             except:
-                print "evaling message failed in handle_messages in CommandMap"
+                print "evaling message failed in handle_messages in MessageMap"
             if message_list:
                 self._services_parsed[service]['raw_messages'] = message_list
                 self.parse_raw_lists(service)
                 self._services_parsed[service]['parsed'] = True
-                if self.check_command_map_complete():
+                if self.check_message_map_complete():
                     self.finalize()
         else:
             pretty_print(
-                "handling of message failed in handle_messages in CommandMap:", 
+                "handling of message failed in handle_messages in MessageMap:", 
                 msg, 1, 0)
 
-    def get_command_map(self):
+    def get_message_map(self):
         for service in self._services:
             if not service.startswith('core-') and not service.startswith('stp-'):
                 self._services_parsed[service] = {
@@ -219,35 +227,35 @@ class CommandMap(object):
                 command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {})
 
 
-    # pretty print map
+    # pretty print message map
 
     def pretty_print_fields(self, fields, indent):
         ret = []
         for field in fields:
-            ret.append('%s{' % (indent * CommandMap.INDENT))
+            ret.append('%s{' % (indent * MessageMap.INDENT))
             indent += 1
-            ret.append('%s"name": "%s",' % (indent * CommandMap.INDENT, field['name']))
-            ret.append('%s"q": "%s",' % (indent * CommandMap.INDENT, field['q']))
+            ret.append('%s"name": "%s",' % (indent * MessageMap.INDENT, field['name']))
+            ret.append('%s"q": "%s",' % (indent * MessageMap.INDENT, field['q']))
             if "message" in field:
                 if 'recursive' in field['message']:
                     ret.append('%s"message": <recursive reference>,' % (
-                        indent * CommandMap.INDENT))
+                        indent * MessageMap.INDENT))
                 else:
-                    ret.append('%s"message": [' % (indent * CommandMap.INDENT))
+                    ret.append('%s"message": [' % (indent * MessageMap.INDENT))
                     ret.extend(self.pretty_print_fields(field['message'], indent + 1))
-                    ret.append('%s],' % (indent * CommandMap.INDENT))
+                    ret.append('%s],' % (indent * MessageMap.INDENT))
             indent -= 1
-            ret.append('%s},' % (indent * CommandMap.INDENT))
+            ret.append('%s},' % (indent * MessageMap.INDENT))
         return ret
 
     def pretty_print_message(self, message, indent):
         ret = []
-        ret.append('%s"name": "%s",' % (indent * CommandMap.INDENT , message['name']))
+        ret.append('%s"name": "%s",' % (indent * MessageMap.INDENT , message['name']))
         for key in [1, 2, 3]:
             if key in message:
-                ret.append('%s%s: [' % (indent * CommandMap.INDENT , key))
+                ret.append('%s%s: [' % (indent * MessageMap.INDENT , key))
                 ret.extend(self.pretty_print_fields(message[key], indent + 1))
-                ret.append('%s],' % (indent * CommandMap.INDENT))
+                ret.append('%s],' % (indent * MessageMap.INDENT))
         return ret
 
     def pretty_print_commands(self, commands, indent):
@@ -255,9 +263,9 @@ class CommandMap(object):
         keys = commands.keys()
         keys.sort()
         for key in keys:
-            ret.append('%s%s: {' % (indent * CommandMap.INDENT , key))
+            ret.append('%s%s: {' % (indent * MessageMap.INDENT , key))
             ret.extend(self.pretty_print_message(commands[key], indent + 1))
-            ret.append('%s},' % (indent * CommandMap.INDENT))
+            ret.append('%s},' % (indent * MessageMap.INDENT))
         return ret
             
             
@@ -267,52 +275,53 @@ class CommandMap(object):
         ret = []
         ret.append('{')
         for service in map:
-            ret.append('%s"%s": {' % (indent * CommandMap.INDENT , service))
+            ret.append('%s"%s": {' % (indent * MessageMap.INDENT , service))
             ret.extend(self.pretty_print_commands(map[service], indent + 1))
-            ret.append('%s},' % (indent * CommandMap.INDENT))
+            ret.append('%s},' % (indent * MessageMap.INDENT))
         return "\n".join(ret)
 
-
-
-def pretty_print_XML(in_string):
+def pretty_print_XML(prelude, in_string, format):
     """To pretty print STP 0 messages"""
-    if in_string.startswith("<"):
-        in_string = re.sub(r"<\?[^>]*>", "", in_string)
-        ret = []
-        indent_count = 0
-        INDENT = "  "
-        LF = "\n"
-        TEXT = 0
-        TAG = 1
-        CLOSING_TAG = 2
-        OPENING_CLOSING_TAG = 3
-        OPENING_TAG = 4
-        matches_iter = re.finditer(r"([^<]*)(<(\/)?[^>/]*(\/)?>)", in_string)
-        try:
-            while True:
-                m = matches_iter.next()
-                matches = m.groups()
-                if matches[CLOSING_TAG]:
-                    indent_count -= 1
-                    if matches[TEXT] or last_match == OPENING_TAG:
-                        ret.append(m.group())
-                    else:
+    INDENT = "  "
+    LF = "\n"
+    TEXT = 0
+    TAG = 1
+    CLOSING_TAG = 2
+    OPENING_CLOSING_TAG = 3
+    OPENING_TAG = 4
+    print prelude
+    if format:
+        if in_string.startswith("<"):
+            in_string = re.sub(r"<\?[^>]*>", "", in_string)
+            ret = []
+            indent_count = 0
+            matches_iter = re.finditer(r"([^<]*)(<(\/)?[^>/]*(\/)?>)", in_string)
+            try:
+                while True:
+                    m = matches_iter.next()
+                    matches = m.groups()
+                    if matches[CLOSING_TAG]:
+                        indent_count -= 1
+                        if matches[TEXT] or last_match == OPENING_TAG:
+                            ret.append(m.group())
+                        else:
+                            ret.extend([LF, indent_count * INDENT, m.group()])
+                        last_match = CLOSING_TAG
+                    elif matches[OPENING_CLOSING_TAG] or "<![CDATA[" in matches[1]:
+                        last_match = OPENING_CLOSING_TAG
                         ret.extend([LF, indent_count * INDENT, m.group()])
-                    last_match = CLOSING_TAG
-                elif matches[OPENING_CLOSING_TAG] or "<![CDATA[" in matches[1]:
-                    last_match = OPENING_CLOSING_TAG
-                    ret.extend([LF, indent_count * INDENT, m.group()])
-                else:
-                    last_match = OPENING_TAG
-                    ret.extend([LF, indent_count * INDENT, m.group()])
-                    indent_count += 1
-        except StopIteration:
-            pass
-        except:
-            raise
-    else:
-        ret = [in_string]
-    return "".join(ret)
+                    else:
+                        last_match = OPENING_TAG
+                        ret.extend([LF, indent_count * INDENT, m.group()])
+                        indent_count += 1
+            except StopIteration:
+                pass
+            except:
+                raise
+        else:
+            ret = [in_string]
+        in_string = "".join(ret).lstrip(LF)
+    print in_string
 
 
 def pretty_print_payload_item(indent, name, definition, item):
@@ -356,7 +365,7 @@ def pretty_print(prelude, msg, format, format_payload):
     print prelude
     if format:
         service = msg[MSG_KEY_SERVICE]
-        command = command_map.get(service, {}).get(msg[MSG_KEY_COMMAND_ID], None)
+        command = message_map.get(service, {}).get(msg[MSG_KEY_COMMAND_ID], None)
         print "  message type:", message_type_map[msg[MSG_KEY_TYPE]]
         print "  service:", service
         print "  command:", command and \

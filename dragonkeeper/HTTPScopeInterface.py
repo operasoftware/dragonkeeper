@@ -47,8 +47,7 @@ from time import time
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT
 from common import NOT_FOUND, BAD_REQUEST, get_timestamp, Singleton
 # from common import pretty_dragonfly_snapshot
-from maps import command_map
-from utils import CommandMap, pretty_print_XML, pretty_print
+from utils import MessageMap, pretty_print_XML, pretty_print
 
 # the two queues
 connections_waiting = []
@@ -113,17 +112,14 @@ class Scope(Singleton):
         self._connection = None
 
     def _connect_callback(self):
-        if command_map:
+        if MessageMap.has_map():
             self._http_connection.return_service_list(self._service_list)
             self._http_connection = None
         else:
-            CommandMap(self._service_list, command_map, self._connection, 
-                self._connect_callback, self._http_connection.print_command_map)
+            MessageMap(self._service_list, self._connection, 
+                self._connect_callback, self._http_connection.print_message_map)
 
 scope = Scope()
-
-
-
 
 class HTTPScopeInterface(httpconnection.HTTPConnection):
     """To expose a HTTP interface of the scope interface.
@@ -262,7 +258,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         self.debug = context.debug
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
-        self.print_command_map = context.print_command_map
+        self.print_message_map = context.print_message_map
         # for backward compatibility
         self.scope_message = self.get_message
         self.send_command = self.post_command
@@ -383,10 +379,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         """ return a message to the client"""
         service, payload = msg
         if self.debug:
-            if self.debug_format:
-                print "\nsend to client:", service, pretty_print_XML(payload)
-            else:
-                print "send to client:", service, payload
+            pretty_print_XML("\nsend to client: %s" % service, payload, self.debug_format)
         self.out_buffer += self.SCOPE_MESSAGE_STP_0 % (
             get_timestamp(),
             service,

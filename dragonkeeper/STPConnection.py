@@ -107,11 +107,8 @@ class ScopeConnection(asyncore.dispatcher):
     def send_command_STP_0(self, msg):
         """ to send a message to scope"""
         if self.debug:
-            if self.debug_format:
-                service, payload = msg.split(BLANK, 1)
-                print "\nsend to scope:", service, pretty_print_XML(payload), "\n"
-            else:
-                print "send to scope:", msg
+            service, payload = msg.split(BLANK, 1)
+            pretty_print_XML("\nsend to scope: %s" % service, payload, self.debug_format)
         self.out_buffer += ("%s %s" % (len(msg), msg)).encode("UTF-16BE")
         self.handle_write()
 
