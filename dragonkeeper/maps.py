@@ -27,6 +27,7 @@ message_type_map = {
     }
 
 command_map = {}
+"""
 command_map_backup = {
     "console-logger": {
         1: {
@@ -1927,3 +1928,4 @@ command_map_backup = {
         },
     },
 }
+"""

@@ -8,7 +8,7 @@ from time import time
 from random import randint
 from common import BLANK, BUFFERSIZE
 from httpscopeinterface import connections_waiting, scope_messages, scope
-from httpscopeinterface import pretty_print_XML, pretty_print
+from utils import pretty_print_XML, pretty_print
 
 
 def encode_varuint(value):
@@ -109,7 +109,7 @@ class ScopeConnection(asyncore.dispatcher):
         if self.debug:
             if self.debug_format:
                 service, payload = msg.split(BLANK, 1)
-                print "\nsend to scope:", service, pretty_print_XML(payload)
+                print "\nsend to scope:", service, pretty_print_XML(payload), "\n"
             else:
                 print "send to scope:", msg
         self.out_buffer += ("%s %s" % (len(msg), msg)).encode("UTF-16BE")
