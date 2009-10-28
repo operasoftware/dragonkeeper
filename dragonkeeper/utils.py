@@ -47,8 +47,6 @@ class MessageMap(object):
     to be used to pretty print the payloads by adding the keys to all values"""
     COMMAND_INFO = 7
     COMMAND_MESSAGE_INFO = 11
-    MESSAGE_STATUS = 4
-    MESSAGE_PAYLOAD = 8
     INDENT = "    "
 
     @staticmethod
@@ -90,10 +88,10 @@ class MessageMap(object):
             })
 
     def handle_commands(self, msg, service):
-        if not msg[self.MESSAGE_STATUS] and service in self._services_parsed:
+        if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
             command_list = None
             try:
-                command_list = eval(msg[self.MESSAGE_PAYLOAD].replace("null", "None"))
+                command_list = eval(msg[MSG_KEY_PAYLOAD].replace("null", "None"))
             except:
                 print "evaling message failed in handle_commands in MessageMap"
             if command_list:
@@ -116,10 +114,10 @@ class MessageMap(object):
             })
 
     def handle_messages(self, msg, service):
-        if not msg[self.MESSAGE_STATUS] and service in self._services_parsed:
+        if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
             message_list = None
             try:
-                message_list = eval(msg[self.MESSAGE_PAYLOAD].replace("null", "None"))
+                message_list = eval(msg[MSG_KEY_PAYLOAD].replace("null", "None"))
             except:
                 print "evaling message failed in handle_messages in MessageMap"
             if message_list:
@@ -361,6 +359,7 @@ def pretty_print_payload(payload, definitions, indent=2):
     else:
         return ""
 
+# TODO handle 'recursive'
 def pretty_print(prelude, msg, format, format_payload):
     print prelude
     if format:
