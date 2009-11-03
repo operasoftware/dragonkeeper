@@ -42,12 +42,58 @@ class TagManager(Singleton):
 tag_manager = TagManager()
 
 
+
+
 class MessageMap(object):
     """ to create a description map of all messages 
     to be used to pretty print the payloads by adding the keys to all values"""
     COMMAND_INFO = 7
     COMMAND_MESSAGE_INFO = 11
     INDENT = "    "
+    filter = None
+
+    @staticmethod
+    def set_filter(filter):
+        def create_check(check):
+            def check_default(in_str):
+                return check == in_str
+            def check_endswith(in_str):
+                return in_str.endswith(check)
+            def check_startswith(in_str):
+                return in_str.startswith(check)
+            def check_pass(in_str):
+                return True
+            if check in "*":
+                return check_pass
+            if check.endswith('*'):
+                check = check.strip('*')
+                return check_startswith
+            if check.startswith('*'):
+                check = check.strip('*')
+                return check_endswith
+            return check_default
+        content = filter
+        filter_obj = None
+        import os
+        if os.path.isfile(filter):
+            try:
+                file = open(filter, 'rb')
+                content = file.read()
+                file.close()
+            except:
+                print "reading filter failed"
+        try:
+            code = compile(content.replace('\r\n', '\n'), filter, 'eval')
+            filter_obj = eval(code)
+        except:
+            print "parsing the specified filter failed"
+        if filter_obj:
+            for service in filter_obj:
+                for type in filter_obj[service]:
+                    filter_obj[service][type] = (
+                        [create_check(check) for check in filter_obj[service][type]]
+                        )
+            MessageMap.filter = filter_obj
 
     @staticmethod
     def has_map():
@@ -359,39 +405,50 @@ def pretty_print_payload(payload, definitions, indent=2):
     else:
         return ""
 
+def check_message(service, command, message_type):
+    if MessageMap.filter and service in MessageMap.filter and \
+        message_type in MessageMap.filter[service]:
+            for check in MessageMap.filter[service][message_type]:
+                if check(command):
+                    return True
+    return False
+    
 # TODO handle 'recursive'
 def pretty_print(prelude, msg, format, format_payload):
-    print prelude
-    if format:
-        service = msg[MSG_KEY_SERVICE]
-        command = message_map.get(service, {}).get(msg[MSG_KEY_COMMAND_ID], None)
-        print "  message type:", message_type_map[msg[MSG_KEY_TYPE]]
-        print "  service:", service
-        print "  command:", command and \
-                        command.get("name", None) or '<id: %d>' % msg[MSG_KEY_COMMAND_ID]
-        print "  format:", format_type_map[msg[MSG_KEY_FORMAT]]
-        if MSG_KEY_STATUS in msg:
-            print "  status:", status_map[msg[MSG_KEY_STATUS]]
-        if MSG_KEY_CLIENT_ID in msg:
-            print "  cid:", msg[MSG_KEY_CLIENT_ID]
-        if MSG_KEY_UUID in msg:
-            print "  uuid:", msg[MSG_KEY_UUID]
-        if MSG_KEY_TAG in msg:
-            print "  tag:", msg[MSG_KEY_TAG]
-        if format_payload:
-            payload = None
-            try:
-                # a bit a hack
-                payload = eval(msg[8].replace(",null", ",None"))
-            except:
-                print "failed evaling the payload in pretty_print"
-            print "  payload:"
-            if type(payload) == type([]) and command:
-                print pretty_print_payload(payload, 
-                                command.get(msg[MSG_KEY_TYPE], None)), "\n"
+    service = msg[MSG_KEY_SERVICE]
+    command_def = message_map.get(service, {}).get(msg[MSG_KEY_COMMAND_ID], None)
+    command_name = command_def and command_def.get("name", None) or \
+                                    '<id: %d>' % msg[MSG_KEY_COMMAND_ID]
+    message_type = message_type_map[msg[MSG_KEY_TYPE]]
+    if not MessageMap.filter or check_message(service, command_name, message_type): 
+        print prelude
+        if format:
+            print "  message type:", message_type
+            print "  service:", service
+            print "  command:", command_name
+            print "  format:", format_type_map[msg[MSG_KEY_FORMAT]]
+            if MSG_KEY_STATUS in msg:
+                print "  status:", status_map[msg[MSG_KEY_STATUS]]
+            if MSG_KEY_CLIENT_ID in msg:
+                print "  cid:", msg[MSG_KEY_CLIENT_ID]
+            if MSG_KEY_UUID in msg:
+                print "  uuid:", msg[MSG_KEY_UUID]
+            if MSG_KEY_TAG in msg:
+                print "  tag:", msg[MSG_KEY_TAG]
+            if format_payload:
+                payload = None
+                try:
+                    # a bit a hack
+                    payload = eval(msg[8].replace(",null", ",None"))
+                except:
+                    print "failed evaling the payload in pretty_print"
+                print "  payload:"
+                if type(payload) == type([]) and command_def:
+                    print pretty_print_payload(payload, 
+                                    command_def.get(msg[MSG_KEY_TYPE], None)), "\n"
+                else:
+                    print "    ", msg[MSG_KEY_PAYLOAD], "\n"
             else:
-                print "    ", msg[MSG_KEY_PAYLOAD], "\n"
+                print "  payload:", msg[MSG_KEY_PAYLOAD], "\n"
         else:
-            print "  payload:", msg[MSG_KEY_PAYLOAD], "\n"
-    else:
-        print msg
+            print msg

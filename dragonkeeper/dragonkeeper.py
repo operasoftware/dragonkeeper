@@ -23,6 +23,7 @@ APP_DEFAULTS = {
     "force_stp_0": False,
     "format_payload": False,
     "print_message_map": False,
+    "message_filter": "",
 }
 
 DEFAULT_TYPES = {
@@ -35,6 +36,7 @@ DEFAULT_TYPES = {
     "force_stp_0": bool,
     "format_payload": bool,
     "print_message_map": bool,
+    "message_filter": str,
 }
 
 USAGE = """%prog [options]
@@ -160,6 +162,20 @@ def _parse_options():
         dest = "print_message_map",
         help = "print the command map",
     )
+    parser.add_option(
+        "--message-filter",
+        dest = "message_filter",
+        help = """Filter the printing of the messages. """ \
+                """The argument is the filter or a path to a file with the filter. """\
+                """If the filter is set, only messages which are """\
+                """listed in the filter will be printed. """\
+                """The filter uses JSON notation like: """\
+                """{"<service name>": {"<message type>": [<message>*]}}", """\
+                """with message type one of "command", "response", "event." """\
+                """ '*' placeholder are accepted in <message>, """\
+                """e.g. a filter to log all threads may look like: """\
+                """{"ecmascript-debugger": {"event": ["OnThread*"]}}."""
+    )
     options, args = parser.parse_args()
 
 
@@ -203,6 +219,9 @@ def _parse_options():
 
 def main_func():
     options = _parse_options()
+    if options.message_filter:
+        from utils import MessageMap
+        MessageMap.set_filter(options.message_filter)
     os.chdir(options.root)
     try:
         run_proxy(options)
