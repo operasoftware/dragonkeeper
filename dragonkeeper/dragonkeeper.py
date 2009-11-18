@@ -174,7 +174,7 @@ def _parse_options():
                 """with message type one of "command", "response", "event." """\
                 """ '*' placeholder are accepted in <message>, """\
                 """e.g. a filter to log all threads may look like: """\
-                """{"ecmascript-debugger": {"event": ["OnThread*"]}}."""
+                """ "{'ecmascript-debugger': {'event': ['OnThread*']}}"."""
     )
     options, args = parser.parse_args()
 

@@ -13,6 +13,7 @@ MSG_KEY_UUID = 7
 MSG_KEY_PAYLOAD = 8
 MSG_VALUE_COMMAND = 1
 MSG_VALUE_FORMAT_JSON = 1
+MSG_TYPE_ERROR = 4
 
 class TagManager(Singleton):
 
@@ -87,6 +88,7 @@ class MessageMap(object):
             filter_obj = eval(code)
         except:
             print "parsing the specified filter failed"
+        print "parsed filter:", filter_obj
         if filter_obj:
             for service in filter_obj:
                 for type in filter_obj[service]:
@@ -435,7 +437,7 @@ def pretty_print(prelude, msg, format, format_payload):
                 print "  uuid:", msg[MSG_KEY_UUID]
             if MSG_KEY_TAG in msg:
                 print "  tag:", msg[MSG_KEY_TAG]
-            if format_payload:
+            if format_payload and not msg[MSG_KEY_TYPE] == MSG_TYPE_ERROR:
                 payload = None
                 try:
                     # a bit a hack
