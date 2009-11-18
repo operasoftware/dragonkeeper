@@ -388,22 +388,27 @@ def pretty_print_payload(payload, definitions, indent=2):
     type_str = type("")
     # TODO message: <recursive reference>
     if definitions:
-        for item, definition in zip(payload, definitions):
-            if definition["q"] == "repeated":
-                ret.append("%s%s:" % (indent * INDENT, definition['name']))
-                for sub_item in item:
+        try:
+            for item, definition in zip(payload, definitions):
+                if definition["q"] == "repeated":
+                    ret.append("%s%s:" % (indent * INDENT, definition['name']))
+                    for sub_item in item:
+                        ret.append(pretty_print_payload_item(
+                                indent + 1,
+                                definition['name'].replace("List", ""),
+                                definition,
+                                sub_item))
+                else:
                     ret.append(pretty_print_payload_item(
-                            indent + 1,
-                            definition['name'].replace("List", ""),
+                            indent,
+                            definition['name'],
                             definition,
-                            sub_item))
-            else:
-                ret.append(pretty_print_payload_item(
-                        indent,
-                        definition['name'],
-                        definition,
-                        item))
-        return "\n".join(ret)
+                            item))
+            return "\n".join(ret)
+        except Exception, msg:
+            print "failed to pretty print the paylod. wrong message structure?"
+            print "%spayload:" % INDENT, payload
+            print "%sdefinition:" % INDENT, definitions
     else:
         return ""
 
