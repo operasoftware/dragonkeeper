@@ -55,8 +55,6 @@ class ScopeConnection(asyncore.dispatcher):
     STP1_PB_FORMAT = encode_varuint(3 << 3 | 0)
     STP1_PB_STATUS = encode_varuint(4 << 3 | 0)
     STP1_PB_TAG = encode_varuint(5 << 3 | 0)
-    STP1_PB_CID = encode_varuint(6 << 3 | 0)
-    STP1_PB_UUID = encode_varuint(7 << 3 | 2)
     STP1_PB_PAYLOAD = encode_varuint(8 << 3 | 2)
 
     def __init__(self, conn, addr, context):
@@ -75,8 +73,6 @@ class ScopeConnection(asyncore.dispatcher):
         self.stream = codecs.lookup('UTF-16BE').streamreader(self)
         # STP 1 messages
         self.connect_client_callback = None
-        self.uuid = str(randint(100, 10000000) + int(time() * 1000))
-        self.STP1_PB_CLIENT_ID = ""
         self.varint = 0
         self._service_list = None
         scope.set_connection(self)
@@ -231,11 +227,6 @@ class ScopeConnection(asyncore.dispatcher):
     #
     #
     # See also http://dragonfly.opera.com/app/scope-interface for more details.
-    def set_CID(self, id):
-        self.STP1_PB_CLIENT_ID = self.STP1_PB_CID + encode_varuint(id)
-
-    def clear_CID(self):
-        self.STP1_PB_CLIENT_ID = ""
 
     def send_command_STP_1(self, msg):
         """ to send a message to scope
@@ -246,8 +237,6 @@ class ScopeConnection(asyncore.dispatcher):
             required uint32 format = 3;
             optional uint32 status = 4;
             optional uint32 tag = 5;
-            optional uint32 clientID = 6;
-            optional string uuid = 7;
             required binary payload = 8;
         }
         """
@@ -260,8 +249,6 @@ class ScopeConnection(asyncore.dispatcher):
             self.STP1_PB_COMMID, encode_varuint(msg[2]),
             self.STP1_PB_FORMAT, encode_varuint(msg[3]),
             self.STP1_PB_TAG, encode_varuint(msg[5]),
-            self.STP1_PB_CLIENT_ID or
-                    self.STP1_PB_UUID + encode_varuint(len(msg[7])) + msg[7],
             self.STP1_PB_PAYLOAD, encode_varuint(len(msg[8])), msg[8]])
         self.out_buffer += (
             self.STP1_PB_STP1 +
@@ -302,7 +289,6 @@ class ScopeConnection(asyncore.dispatcher):
 
     def connect_client(self, callback):
         self.connect_client_callback = callback
-        self.clear_CID()
         self.handle_stp1_msg = self.handle_connect_client
         """
         message TransportMessage
@@ -312,8 +298,6 @@ class ScopeConnection(asyncore.dispatcher):
             required uint32 format = 3;
             optional uint32 status = 4;
             optional uint32 tag = 5;
-            optional uint32 clientID = 6;
-            optional string uuid = 7;
             required binary payload = 8;
         }
         """
@@ -323,15 +307,13 @@ class ScopeConnection(asyncore.dispatcher):
                 2: 3,
                 3: 1,
                 5: 0,
-                7: self.uuid,
-                8: '["json","%s"]' % self.uuid})
+                8: '["json"]'})
 
     def handle_connect_client(self, msg):
         if self.debug:
             pretty_print("client connected:", msg,
                             self.debug_format, self.debug_format_payload)
         if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:
-            self.set_CID(int(msg[8].strip('[]')))
             self.handle_stp1_msg = self.handle_stp1_msg_default
             self.connect_client_callback()
             self.connect_client_callback = None
@@ -382,8 +364,6 @@ class ScopeConnection(asyncore.dispatcher):
             required uint32 format = 3;
             optional uint32 status = 4;
             optional uint32 tag = 5;
-            optional uint32 clientID = 6;
-            optional string uuid = 7;
             required binary payload = 8;
         }
         """
