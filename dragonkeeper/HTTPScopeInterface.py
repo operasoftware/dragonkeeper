@@ -60,6 +60,11 @@ XML_PRELUDE = """<?xml version="1.0"?>%s"""
 class Scope(Singleton):
     """Access layer for HTTPScopeInterface instances to the scope connection"""
 
+    version_map = {
+        "stp-1": "STP/1",
+        "stp-0": "STP/0",
+        }
+
     def __init__(self):
         self.send_command = self.empty_call
         self.services_enabled = {}
@@ -84,7 +89,10 @@ class Scope(Singleton):
         """to get the service list.
         in STP/1 the request of the service list does trigger to (re) connect
         the client. Only after the Connect command was performed successfully
-        the service list is returned to the client"""
+        the service list is returned to the client. any state must be reset"""
+        # empty the scope message queue
+        while scope_messages:
+            scope_messages.pop()
         if self.version == 'stp-0':
             http_connection.return_service_list(self._service_list)
         elif self.version == 'stp-1':
@@ -104,6 +112,9 @@ class Scope(Singleton):
             self.send_command = self._connection.send_command_STP_1
         else:
             print "This stp version is not jet supported"
+
+    def get_STP_version(self):
+        return self.version_map[self.version]
 
     def reset(self):
         self._service_list = []
@@ -281,6 +292,16 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
             get_timestamp(),
             len(content),
             content)
+
+    def get_stp_version(self):
+        content = scope.get_STP_version()
+        self.out_buffer += RESPONSE_OK_CONTENT % (
+            get_timestamp(),
+            '',
+            "text/plain",
+            len(content),
+            content)
+        self.timeout = 0
 
     def enable(self):
         """to enable a scope service"""
