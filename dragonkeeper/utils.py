@@ -264,13 +264,14 @@ class MessageMap(object):
             command_obj['name'] = command[NAME]
             # workaround for missing event list
             if command[NAME].lower().startswith('on'):
-                msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
+                msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
                 command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {})
             else:
                 msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
                 command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {})
                 msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
                 command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {})
+        
 
 
     # pretty print message map
