@@ -59,7 +59,7 @@ class HTTPConnection(asyncore.dispatcher):
                     self.check_input()
             # GET
             elif method == "GET":
-                if hasattr(self, command):
+                if hasattr(self, command) and hasattr(getattr(self, command), '__call__'):
                     getattr(self, command)()
                 else:
                     system_path = URI_to_system_path(path.rstrip("/")) or "."
