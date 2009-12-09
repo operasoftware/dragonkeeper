@@ -249,6 +249,7 @@ class MessageMap(object):
         MSG_TYPE_EVENT = 3
         # Command Info
         COMMAND_LIST = 0
+        EVENT_LIST = 1
         NAME = 0
         NUMBER = 1 
         MESSAGE_ID = 2
@@ -259,18 +260,22 @@ class MessageMap(object):
         command_list = self._services_parsed[service]['raw_commands'][COMMAND_LIST]
         raw_msgs = self._services_parsed[service]['raw_messages'][MSG_LIST]
         map = self._map[service] = {}
+        command_list = self._services_parsed[service]['raw_commands'][COMMAND_LIST]
         for command in command_list:
             command_obj = map[command[NUMBER]] = {}
             command_obj['name'] = command[NAME]
-            # workaround for missing event list
-            if command[NAME].lower().startswith('on'):
-                msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
-                command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {})
-            else:
+            msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
+            command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {})
+            msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
+            command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {})
+
+        if len(self._services_parsed[service]['raw_commands']) - 1 >= EVENT_LIST:
+            command_list = self._services_parsed[service]['raw_commands'][EVENT_LIST]
+            for command in command_list:
+                command_obj = map[command[NUMBER]] = {}
+                command_obj['name'] = command[NAME]
                 msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
-                command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {})
-                msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
-                command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {})
+                command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {})
         
 
 
