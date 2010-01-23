@@ -24,6 +24,7 @@ APP_DEFAULTS = {
     "format_payload": False,
     "print_message_map": False,
     "message_filter": "",
+    "verbose_debug": False
 }
 
 DEFAULT_TYPES = {
@@ -37,6 +38,7 @@ DEFAULT_TYPES = {
     "format_payload": bool,
     "print_message_map": bool,
     "message_filter": str,
+    "verbose_debug": bool
 }
 
 USAGE = """%prog [options]
@@ -175,6 +177,12 @@ def _parse_options():
                 """ '*' placeholder are accepted in <message>, """\
                 """e.g. a filter to log all threads may look like: """\
                 """ "{'ecmascript-debugger': {'event': ['OnThread*']}}"."""
+    )
+    parser.add_option(
+        "-v", "--verbose",
+        action = "store_true",
+        dest = "verbose_debug",
+        help = "print verbose debug info",
     )
     options, args = parser.parse_args()
 

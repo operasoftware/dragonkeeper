@@ -63,6 +63,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.debug = context.debug
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
+        self.verbose_debug = context.verbose_debug
         self.force_stp_0 = context.force_stp_0
         # STP 0 meassages
         self.in_buffer = u""
@@ -380,6 +381,9 @@ class ScopeConnection(asyncore.dispatcher):
             while STP_1_msg:
                 key, value, STP_1_msg = self.read_STP_1_msg_part(STP_1_msg)
                 msg[key] = value
+        if self.verbose_debug:
+            pretty_print("read from scope socket connection:", msg,
+                self.debug_format, self.debug_format_payload)
         self.handle_stp1_msg(msg)
 
     def handle_stp1_msg_default(self, msg):
