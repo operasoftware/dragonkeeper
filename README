@@ -8,7 +8,7 @@ Dragonkeeper - Opera Dragonfly development proxy
 Introduction
 ------------
 
-Dragonkeeper is a utility for working on the Opera Dragonfly client.
+Dragonkeeper is an utility for working on the Opera Dragonfly client.
 Dragonfly serves as a proxy between the debugger and the debuggee. This makes
 it possible to run the Opera Dragonfly client as a normal web page. This
 makes development easy, as on can simple reload the client whenever making
@@ -19,8 +19,7 @@ Howto
 
 Basic workflow when using Dragonkeeper is as follows:
 
-- Get a source distribution of Opera Dragonfly from http://dragonfly.opera.com
-  or by cloning the mercurial repository at FIXME: URL
+- Get a source distribution of Opera Dragonfly from http://bitbucket.org/scope/dragonfly-stp-1/
 - Launch Dragonkeeper with the appropriate options. If the current directory
   is the Dragonfly directory, all the default options should be fine.
 - Open a browser to be debugged, the debuggee.
@@ -56,14 +55,33 @@ Settings:  an optional file dragonkeeper.ini does overwrite the defaults
 
 Options:
   -h, --help            show this help message and exit
+  -c CONFIG_PATH, --config=CONFIG_PATH
+                        Path to config file
   -d, --debug           print message flow
   -f, --format          pretty print message flow
-  -r ROOT, --root=ROOT  the root directory of the server; default D:/hg
+  -j, --format-payload  pretty print the message payload. can be very
+                        expensive
+  -r ROOT, --root=ROOT  the root directory of the server; default .
   -p PROXY_PORT, --proxy-port=PROXY_PORT
                         proxy port; default 7001
   -s SERVER_PORT, --server-port=SERVER_PORT
                         server port; default 8002
   --host=HOST           host; default
+  -i, --make-ini        Print a default dragonkeeper.ini and exit
+  --force-stp-0         force stp 0 protocol
+  --print-command-map   print the command map
+  --message-filter=MESSAGE_FILTER
+                        Filter the printing of the messages. The argument is
+                        the filter or a path to a file with the filter. If the
+                        filter is set, only messages which are listed in the
+                        filter will be printed. The filter uses JSON notation
+                        like: {"<service name>": {"<message type>":
+                        [<message>*]}}", with message type one of "command",
+                        "response", "event."  '*' placeholder are accepted in
+                        <message>, e.g. a filter to log all threads may look
+                        like:  "{'ecmascript-debugger': {'event':
+                        ['OnThread*']}}".
+  -v, --verbose         print verbose debug info
 
 More comments in the source files.
 
@@ -84,7 +102,6 @@ Dragonkeeper is maintained by the Opera Dragonfly team. The authors are
 
 The Opera Dragonfly web site is at http://dragonfly.opera.com
 
-FIXME: more links, like to BTS?
 
 License
 -------
