@@ -1,7 +1,7 @@
 # Copyright (c) 2008, Opera Software ASA
 # license see LICENSE.
 
-__version__ = 0.8
+__version__ = '0.8.1'
 
 import socket
 import asyncore
