@@ -24,9 +24,10 @@ except ImportError:
 setup(
     name = 'dragonkeeper',
     version = VERSION,
+    url='http://bitbucket.org/scope/dragonkeeper/',
     author = 'Christian Krebs, Rune Halvorsen, Jan Borsodi',
     author_email = 'chrisk@opera.com, runeh@opera.com, jborsodi@opera.com',
-    data_files = [('.', ['dragonkeeper/favicon.ico'])],
+    data_files = [('dragonkeeper', ['dragonkeeper/favicon.ico'])],
     description = 'An HTTP proxy for Opera Dragonfly development',
     long_description=open("README").read(),
     **addl_args
