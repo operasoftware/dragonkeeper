@@ -234,8 +234,8 @@ def main_func():
     try:
         run_proxy(options)
     except KeyboardInterrupt:
-        # todo: shut down the open connections cleanly
-        pass
+        for fd, obj in asyncore.socket_map.items():
+            obj.close()
     """
     import cProfile, sys
     p=open("profile", "w")
