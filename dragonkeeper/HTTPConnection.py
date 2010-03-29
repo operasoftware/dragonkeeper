@@ -31,17 +31,16 @@ class HTTPConnection(asyncore.dispatcher):
         self.timeout = 0
 
     def read_headers(self):
-        if 2*CRLF in self.in_buffer:
+        raw_parsed_headers = parse_headers(self.in_buffer)
+        if raw_parsed_headers:
             # to dispatch any hanging timeout response
             self.flush()
-            headers_raw, self.in_buffer = self.in_buffer.split(2*CRLF, 1)
-            first_line, headers_raw = headers_raw.split(CRLF, 1)
+            headers_raw, first_line, self.headers, self.in_buffer = raw_parsed_headers
             method, path, protocol = first_line.split(BLANK, 2)
+            self.REQUEST_URI = path
             path = path.lstrip("/")
             if "?" in path:
                 path, self.query = path.split('?', 1)
-            self.headers = dict((RE_HEADER.split(line, 1)
-                                    for line in headers_raw.split(CRLF)))
             arguments = path.split("/")
             command = arguments and arguments.pop(0) or ""
             command = command.replace('-', '_').replace('.', '_')

@@ -24,7 +24,21 @@ CRLF = '\r\n'
 BLANK = ' '
 BUFFERSIZE = 8192
 RE_HEADER = re.compile(": *")
+RE_HEADER_LINES = re.compile(CRLF + "(?![ \t])")
 SOURCE_ROOT = os.path.dirname(os.path.abspath(__file__))
+
+def parse_headers(buffer):
+    if 2*CRLF in buffer:
+        headers_raw, buffer = buffer.split(2*CRLF, 1)
+        first_line, headers = headers_raw.split(CRLF, 1)
+        headers = dict((RE_HEADER.split(line, 1) for line in RE_HEADER_LINES.split(headers)))
+        return (
+            headers_raw + 2 * CRLF, 
+            first_line, 
+            headers, 
+            buffer
+        )
+    return None
 
 RESPONSE_BASIC = \
     'HTTP/1.1 %s %s' + CRLF + \
