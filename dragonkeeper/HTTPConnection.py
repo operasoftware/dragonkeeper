@@ -176,19 +176,17 @@ class HTTPConnection(asyncore.dispatcher):
                     stderrdata
                 ])
                 headers['Content-Type'] = 'text/plain'
-                headers['Content-Length'] = len(content)
             elif stdoutdata:
                 raw_parsed_headers = parse_headers(stdoutdata)
                 if raw_parsed_headers:
                     headers_raw, first_line, headers, content = raw_parsed_headers
-                    if '200' in first_line:
-                        headers['Content-Length'] = len(content)
+                        
                 else:
                     # assume its html
                     content = stdoutdata
                     headers['Content-Type'] = 'text/html'
-                    headers['Content-Length'] = len(content)
-
+        
+        headers['Content-Length'] = len(content)
         self.out_buffer += RESPONSE_BASIC % (
             200,
             'OK',
