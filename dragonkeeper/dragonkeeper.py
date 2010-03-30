@@ -4,6 +4,7 @@
 import ConfigParser
 import sys
 import os
+import socket
 from httpscopeinterface import HTTPScopeInterface
 from stpconnection import ScopeConnection
 from simpleserver import SimpleServer, asyncore
@@ -19,7 +20,7 @@ if sys.platform == "win32":
 CONFIG_FILE = "dragonkeeper.ini"
 
 APP_DEFAULTS = {
-    "host": "",
+    "host": "localhost",
     "server_port": 8002,
     "proxy_port": 7001,
     "root": '.',
@@ -64,12 +65,14 @@ format: False"""
 
 
 def run_proxy(options, count=None):
-    SimpleServer(options.host, options.server_port,
+    server = SimpleServer(options.host, options.server_port,
                  HTTPScopeInterface, options)
+    options.SERVER_ADDR, options.SERVER_PORT = server.socket.getsockname()
+    options.SERVER_NAME = socket.gethostbyaddr(options.SERVER_ADDR)[0]
     SimpleServer(options.host, options.proxy_port,
                  ScopeConnection, options)
     print "server on: http://%s:%s/" % (
-                options.host or "localhost", options.server_port)
+                options.SERVER_NAME, options.SERVER_PORT)
     asyncore.loop(timeout = 0.1, count = count)
 
 

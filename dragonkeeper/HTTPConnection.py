@@ -10,6 +10,7 @@ from os.path import exists as path_exists
 from os.path import join as path_join
 from mimetypes import types_map
 from common import *
+from common import __version__ as VERSION
 
 
 class HTTPConnection(asyncore.dispatcher):
@@ -20,6 +21,7 @@ class HTTPConnection(asyncore.dispatcher):
     def __init__(self, conn, addr, context):
         asyncore.dispatcher.__init__(self, sock = conn)
         self.addr = addr
+        self.context = context
         self.in_buffer = ""
         self.out_buffer = ""
         self.content_length = 0
@@ -62,7 +64,9 @@ class HTTPConnection(asyncore.dispatcher):
                     getattr(self, command)()
                 else:
                     system_path = URI_to_system_path(path.rstrip("/")) or "."
-                    if os.path.exists(system_path) or not path:
+                    if self.check_cgi(system_path):
+                        self.handle_cgi(path, system_path)
+                    elif os.path.exists(system_path) or not path:
                         self.serve(path, system_path)
                     elif path == "favicon.ico":
                         self.serve(path, path_join(SOURCE_ROOT, "favicon.ico"))
@@ -83,6 +87,114 @@ class HTTPConnection(asyncore.dispatcher):
                     len(content),
                     content)
                 self.timeout = 0
+
+    def check_cgi(self, sys_path, handler=".cgi"):
+        # system path of the cgi script
+        self.cgi_script = ""
+        self.SCRIPT_NAME = ""
+        self.PATH_INFO = ""
+        if handler in sys_path:
+            script_path = sys_path[0:sys_path.find(handler) + len(handler)]
+            if isfile(script_path):
+                self.cgi_script = script_path
+                pos = self.REQUEST_URI.find(handler) + len(handler)
+                self.SCRIPT_NAME = self.REQUEST_URI[0:pos]
+                self.PATH_INFO = self.REQUEST_URI[pos:]
+        return bool(self.cgi_script)
+
+    def handle_cgi(self, path, system_path):
+        import subprocess
+        is_failed = False
+        remote_addr, remote_port = self.socket.getpeername()
+        cwd = os.getcwd()
+        environ = {
+            # os
+            "COMSPEC": os.environ["COMSPEC"],
+            "PATH": os.environ["PATH"],
+            "PATHEXT": os.environ["PATHEXT"],
+            "SYSTEMROOT": os.environ["SYSTEMROOT"],
+            "WINDIR": os.environ["WINDIR"],
+            # server
+            "DOCUMENT_ROOT": os.getcwd().replace(os.path.sep, "/"),
+            "GATEWAY_INTERFACE": "CGI/1.1",
+            "PATH_INFO": self.PATH_INFO,
+            "PATH_TRANSLATED": self.PATH_INFO and \
+                    cwd + self.PATH_INFO.replace("/", os.path.sep) or "",
+            "QUERY_STRING": self.query,
+            "REMOTE_ADDR": remote_addr,
+            "REMOTE_PORT": str(remote_port),
+            "REQUEST_METHOD": self.method,
+            "REQUEST_URI": self.REQUEST_URI,
+            "SCRIPT_FILENAME":  cwd.replace(os.path.sep, "/") + self.SCRIPT_NAME,
+            "SCRIPT_NAME": self.SCRIPT_NAME,
+            "SERVER_ADDR": self.context.SERVER_ADDR,
+            "SERVER_ADMIN": "",
+            "SERVER_NAME": self.context.SERVER_NAME,
+            "SERVER_PORT": str(self.context.SERVER_PORT),
+            "SERVER_PROTOCOL": " HTTP/1.1",
+            "SERVER_SIGNATURE": "",
+            "SERVER_SOFTWARE": "dragonkeeper/%s" % VERSION,
+        }
+        for header in self.headers:
+            key = "HTTP_%s" % header.upper().replace('-', '_')
+            environ[key] = self.headers[header]
+        script_abs_path = os.path.abspath(self.cgi_script)
+        stdoutdata = ""
+        stderrdata = ""
+        headers = {}
+        content = ""
+        try:
+            file = open(script_abs_path, 'rb')
+            first_line = file.readline()
+            file.close()
+        except:
+            is_failed = True
+        if not is_failed:
+            if first_line.startswith("#!"):
+                first_line = first_line[2:].strip(' \r\n')
+            else:
+                is_failed = True
+        if not is_failed:
+            p = subprocess.Popen(
+                [first_line, script_abs_path], 
+                stdout=subprocess.PIPE, 
+                stdin=subprocess.PIPE, 
+                stderr=subprocess.PIPE,
+                env=environ,
+                cwd=os.path.split(script_abs_path)[0]
+            )
+            stdoutdata, stderrdata = p.communicate()
+            if stderrdata:
+                content = "\n". join([
+                    "Error occured in the subprocess",
+                    "-------------------------------",
+                    "", 
+                    stderrdata
+                ])
+                headers['Content-Type'] = 'text/plain'
+                headers['Content-Length'] = len(content)
+            elif stdoutdata:
+                raw_parsed_headers = parse_headers(stdoutdata)
+                if raw_parsed_headers:
+                    headers_raw, first_line, headers, content = raw_parsed_headers
+                    if '200' in first_line:
+                        headers['Content-Length'] = len(content)
+                else:
+                    # assume its html
+                    content = stdoutdata
+                    headers['Content-Type'] = 'text/html'
+                    headers['Content-Length'] = len(content)
+
+        self.out_buffer += RESPONSE_BASIC % (
+            200,
+            'OK',
+            get_timestamp(),
+            "".join(
+                ["%s: %s\r\n" % (key, headers[key]) for key in headers] + 
+                [CRLF, content]
+            )
+        )
+        self.timeout = 0
 
     def read_content(self):
         if len(self.in_buffer) >= self.content_length:

@@ -3,6 +3,35 @@
 
 import socket
 import asyncore
+"""
+accept
+bind
+close
+connect
+connect_ex
+dup
+family
+fileno
+getpeername
+getsockname
+getsockopt
+gettimeout
+listen
+makefile
+proto
+recv
+recv_into
+recvfrom
+recvfrom_into
+send
+sendall
+sendto
+setblocking
+setsockopt
+settimeout
+shutdown
+type
+"""
 
 
 class SimpleServer(asyncore.dispatcher):
