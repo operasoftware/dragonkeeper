@@ -118,9 +118,6 @@ class HTTPConnection(asyncore.dispatcher):
             # server
             "DOCUMENT_ROOT": os.getcwd().replace(os.path.sep, "/"),
             "GATEWAY_INTERFACE": "CGI/1.1",
-            "PATH_INFO": self.PATH_INFO,
-            "PATH_TRANSLATED": self.PATH_INFO and \
-                    cwd + self.PATH_INFO.replace("/", os.path.sep) or "",
             "QUERY_STRING": self.query,
             "REMOTE_ADDR": remote_addr,
             "REMOTE_PORT": str(remote_port),
@@ -136,10 +133,15 @@ class HTTPConnection(asyncore.dispatcher):
             "SERVER_SIGNATURE": "",
             "SERVER_SOFTWARE": "dragonkeeper/%s" % VERSION,
         }
+        if self.PATH_INFO:
+            environ["PATH_INFO"] = self.PATH_INFO
+            environ["PATH_TRANSLATED"] = cwd + self.PATH_INFO.replace("/", os.path.sep)
         for header in self.headers:
             key = "HTTP_%s" % header.upper().replace('-', '_')
             environ[key] = self.headers[header]
         script_abs_path = os.path.abspath(self.cgi_script)
+        response_code = 200
+        response_token = 'OK'
         stdoutdata = ""
         stderrdata = ""
         headers = {}
@@ -152,7 +154,7 @@ class HTTPConnection(asyncore.dispatcher):
             is_failed = True
         if not is_failed:
             if first_line.startswith("#!"):
-                first_line = first_line[2:].strip(' \r\n')
+                first_line = first_line[2:].strip()
             else:
                 is_failed = True
         if not is_failed:
@@ -177,10 +179,11 @@ class HTTPConnection(asyncore.dispatcher):
                 ])
                 headers['Content-Type'] = 'text/plain'
             elif stdoutdata:
-                raw_parsed_headers = parse_headers(stdoutdata)
+                raw_parsed_headers = parse_headers(CRLF + stdoutdata)
                 if raw_parsed_headers:
                     headers_raw, first_line, headers, content = raw_parsed_headers
-                        
+                    if 'Status' in headers:
+                        response_code, response_token = headers.pop('Status').split(' ', 1)       
                 else:
                     # assume its html
                     content = stdoutdata
@@ -188,8 +191,8 @@ class HTTPConnection(asyncore.dispatcher):
         
         headers['Content-Length'] = len(content)
         self.out_buffer += RESPONSE_BASIC % (
-            200,
-            'OK',
+            response_code,
+            response_token,
             get_timestamp(),
             "".join(
                 ["%s: %s\r\n" % (key, headers[key]) for key in headers] + 
