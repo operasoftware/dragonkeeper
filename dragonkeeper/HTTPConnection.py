@@ -46,12 +46,14 @@ class HTTPConnection(asyncore.dispatcher):
             arguments = path.split("/")
             command = arguments and arguments.pop(0) or ""
             command = command.replace('-', '_').replace('.', '_')
+            system_path = URI_to_system_path(path.rstrip("/")) or "."
             self.method = method
             self.path = path
             self.command = command
             self.arguments = arguments
+            self.system_path = system_path
             self.timeout = time() + TIMEOUT
-            handled = False
+            self.check_cgi(system_path)
             # POST
             if method == "POST":
                 if "Content-Length" in self.headers:
@@ -63,9 +65,8 @@ class HTTPConnection(asyncore.dispatcher):
                 if hasattr(self, command) and hasattr(getattr(self, command), '__call__'):
                     getattr(self, command)()
                 else:
-                    system_path = URI_to_system_path(path.rstrip("/")) or "."
-                    if self.check_cgi(system_path):
-                        self.handle_cgi(path, system_path)
+                    if self.cgi_script:
+                        self.handle_cgi()
                     elif os.path.exists(system_path) or not path:
                         self.serve(path, system_path)
                     elif path == "favicon.ico":
@@ -102,7 +103,7 @@ class HTTPConnection(asyncore.dispatcher):
                 self.PATH_INFO = self.REQUEST_URI[pos:]
         return bool(self.cgi_script)
 
-    def handle_cgi(self, path, system_path):
+    def handle_cgi(self):
         import subprocess
         is_failed = False
         remote_addr, remote_port = self.socket.getpeername()
@@ -163,7 +164,8 @@ class HTTPConnection(asyncore.dispatcher):
                 env=environ,
                 cwd=os.path.split(script_abs_path)[0]
             )
-            stdoutdata, stderrdata = p.communicate()
+            input = self.method == "POST" and self.raw_post_data or None
+            stdoutdata, stderrdata = p.communicate(input)
             if stderrdata:
                 content = "\n". join([
                     "Error occured in the subprocess",
@@ -199,7 +201,9 @@ class HTTPConnection(asyncore.dispatcher):
     def read_content(self):
         if len(self.in_buffer) >= self.content_length:
             self.raw_post_data = self.in_buffer[0:self.content_length]
-            if hasattr(self, self.command):
+            if self.cgi_script:
+                self.handle_cgi()
+            elif hasattr(self, self.command):
                 getattr(self, self.command)()
             else:
                 content = "The server cannot handle: %s" % self.path
