@@ -164,7 +164,9 @@ class HTTPConnection(asyncore.dispatcher):
                 env=environ,
                 cwd=os.path.split(script_abs_path)[0]
             )
-            input = self.method == "POST" and self.raw_post_data or None
+            input = None
+            if self.method == "POST":
+                input = self.raw_post_data
             stdoutdata, stderrdata = p.communicate(input)
             if stderrdata:
                 content = "\n". join([
