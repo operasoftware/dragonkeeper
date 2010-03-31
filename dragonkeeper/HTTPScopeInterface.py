@@ -162,7 +162,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
                     X-Scope-Message-Command for the command id
                     X-Scope-Message-Status for the status code
                     X-Scope-Message-Tag for the tag
-                the body is the message in JSON format 
+                the response body is the message in JSON format 
                 (except timeout responses which are still sent as xml)
 
     POST methods:
