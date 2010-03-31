@@ -31,6 +31,8 @@ class HTTPConnection(asyncore.dispatcher):
         # Timeout acts also as flag to signal
         # a connection which still waits for a response
         self.timeout = 0
+        self.cgi_enabled = context.cgi_enabled
+        self.cgi_script = ""
 
     def read_headers(self):
         raw_parsed_headers = parse_headers(self.in_buffer)
@@ -53,7 +55,8 @@ class HTTPConnection(asyncore.dispatcher):
             self.arguments = arguments
             self.system_path = system_path
             self.timeout = time() + TIMEOUT
-            self.check_cgi(system_path)
+            if self.cgi_enabled:
+                self.check_is_cgi(system_path)
             # POST
             if method == "POST":
                 if "Content-Length" in self.headers:
@@ -89,13 +92,13 @@ class HTTPConnection(asyncore.dispatcher):
                     content)
                 self.timeout = 0
 
-    def check_cgi(self, sys_path, handler=".cgi"):
+    def check_is_cgi(self, system_path, handler=".cgi"):
         # system path of the cgi script
         self.cgi_script = ""
         self.SCRIPT_NAME = ""
         self.PATH_INFO = ""
-        if handler in sys_path:
-            script_path = sys_path[0:sys_path.find(handler) + len(handler)]
+        if handler in system_path:
+            script_path = system_path[0:system_path.find(handler) + len(handler)]
             if isfile(script_path):
                 self.cgi_script = script_path
                 pos = self.REQUEST_URI.find(handler) + len(handler)

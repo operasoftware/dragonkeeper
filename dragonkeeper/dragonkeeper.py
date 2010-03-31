@@ -30,7 +30,8 @@ APP_DEFAULTS = {
     "format_payload": False,
     "print_message_map": False,
     "message_filter": "",
-    "verbose_debug": False
+    "verbose_debug": False,
+    "cgi_enabled": False
 }
 
 DEFAULT_TYPES = {
@@ -44,7 +45,8 @@ DEFAULT_TYPES = {
     "format_payload": bool,
     "print_message_map": bool,
     "message_filter": str,
-    "verbose_debug": bool
+    "verbose_debug": bool,
+    "cgi_enabled": bool
 }
 
 USAGE = """%prog [options]
@@ -191,6 +193,12 @@ def _parse_options():
         action = "store_true",
         dest = "verbose_debug",
         help = "print verbose debug info",
+    )
+    parser.add_option(
+        "--cgi",
+        action = "store_true",
+        dest = "cgi_enabled",
+        help = "enable cgi support",
     )
     options, args = parser.parse_args()
 
