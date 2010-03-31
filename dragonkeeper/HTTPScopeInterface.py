@@ -134,24 +134,36 @@ scope = Scope()
 
 class HTTPScopeInterface(httpconnection.HTTPConnection):
     """To expose a HTTP interface of the scope interface.
+    
+    Documentation of the scope interface itself see:
+
+        http://dragonfly.opera.com/app/scope-interface/
 
     The first part of the path is the command name, other parts are arguments.
     If there is no matching command, the path is served.
 
     GET methods:
-        /services
-            to get a list of available services
-        /enable/<service name>
-            to enable the given service
-        /get-message
-            to get a pending message or to wait for the next one
-            header informations are added as custom header fields like:
-                X-Scope-Message-Service for the service name (the only one in STP/0)
-                X-Scope-Message-Command for the command id
-                X-Scope-Message-Status for the status code
-                X-Scope-Message-Tag for the tag
-        /quite
-            to quit the session, not implemented
+        STP/0
+            /services
+                to get a list of available services
+            /enable/<service name>
+                to enable the given service
+            /get-message
+                to get a pending message or to wait for the next one
+                header informations are added as custom header fields like:
+                    X-Scope-Message-Service for the service name 
+        STP/1
+            /services
+                to get a list of available services
+            /get-message
+                to get a pending message or to wait for the next one
+                header informations are added as custom header fields like:
+                    X-Scope-Message-Service for the service name 
+                    X-Scope-Message-Command for the command id
+                    X-Scope-Message-Status for the status code
+                    X-Scope-Message-Tag for the tag
+                the body is the message in JSON format 
+                (except timeout responses which are still sent as xml)
 
     POST methods:
         STP/0:
@@ -159,7 +171,10 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
                 request body: message
         STP/1:
             /post-command/<service-name>/<command-id>/<tag>
-                request body: message
+                request body: message in JSON format
+
+    The STP/1 HTTP interface supports only JSON format for the messages.
+
     """
 
     # scope specific responses
