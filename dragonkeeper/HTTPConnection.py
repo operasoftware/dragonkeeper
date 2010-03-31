@@ -39,7 +39,8 @@ class HTTPConnection(asyncore.dispatcher):
         if raw_parsed_headers:
             # to dispatch any hanging timeout response
             self.flush()
-            headers_raw, first_line, self.headers, self.in_buffer = raw_parsed_headers
+            (headers_raw, first_line, 
+                    self.headers, self.in_buffer) = raw_parsed_headers
             method, path, protocol = first_line.split(BLANK, 2)
             self.REQUEST_URI = path
             path = path.lstrip("/")
@@ -65,7 +66,8 @@ class HTTPConnection(asyncore.dispatcher):
                     self.check_input()
             # GET
             elif method == "GET":
-                if hasattr(self, command) and hasattr(getattr(self, command), '__call__'):
+                if hasattr(self, command) and \
+                        hasattr(getattr(self, command), '__call__'):
                     getattr(self, command)()
                 else:
                     if self.cgi_script:
@@ -138,7 +140,8 @@ class HTTPConnection(asyncore.dispatcher):
         }
         if self.PATH_INFO:
             environ["PATH_INFO"] = self.PATH_INFO
-            environ["PATH_TRANSLATED"] = cwd + self.PATH_INFO.replace("/", os.path.sep)
+            environ["PATH_TRANSLATED"] = \
+                    cwd + self.PATH_INFO.replace("/", os.path.sep)
         for header in self.headers:
             key = "HTTP_%s" % header.upper().replace('-', '_')
             environ[key] = self.headers[header]
@@ -184,9 +187,11 @@ class HTTPConnection(asyncore.dispatcher):
             elif stdoutdata:
                 raw_parsed_headers = parse_headers(CRLF + stdoutdata)
                 if raw_parsed_headers:
-                    headers_raw, first_line, headers, content = raw_parsed_headers
+                    (headers_raw, first_line, 
+                            headers, content) = raw_parsed_headers
                     if 'Status' in headers:
-                        response_code, response_token = headers.pop('Status').split(' ', 1)       
+                        response_code, response_token = \
+                                headers.pop('Status').split(' ', 1)       
                 else:
                     # assume its html
                     content = stdoutdata
