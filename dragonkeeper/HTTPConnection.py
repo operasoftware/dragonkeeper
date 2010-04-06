@@ -105,7 +105,10 @@ class HTTPConnection(asyncore.dispatcher):
                 self.cgi_script = script_path
                 pos = self.REQUEST_URI.find(handler) + len(handler)
                 self.SCRIPT_NAME = self.REQUEST_URI[0:pos]
-                self.PATH_INFO = self.REQUEST_URI[pos:]
+                path_info = self.REQUEST_URI[pos:]
+                if "?" in path_info:
+                    path_info = path_info[0:path_info.find("?")]
+                self.PATH_INFO = path_info
         return bool(self.cgi_script)
 
     def handle_cgi(self):
@@ -142,6 +145,10 @@ class HTTPConnection(asyncore.dispatcher):
             environ["PATH_INFO"] = self.PATH_INFO
             environ["PATH_TRANSLATED"] = \
                     cwd + self.PATH_INFO.replace("/", os.path.sep)
+        if "Content-Length" in self.headers:
+            environ["CONTENT_LENGTH"] = self.headers["Content-Length"]
+        if "Content-Type" in self.headers:
+            environ["CONTENT_TYPE"] = self.headers["Content-Type"]            
         for header in self.headers:
             key = "HTTP_%s" % header.upper().replace('-', '_')
             environ[key] = self.headers[header]
