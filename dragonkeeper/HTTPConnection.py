@@ -118,11 +118,11 @@ class HTTPConnection(asyncore.dispatcher):
         cwd = os.getcwd()
         environ = {
             # os
-            "COMSPEC": os.environ["COMSPEC"],
+            "COMSPEC": os.environ.get("COMSPEC", ""),
             "PATH": os.environ["PATH"],
-            "PATHEXT": os.environ["PATHEXT"],
-            "SYSTEMROOT": os.environ["SYSTEMROOT"],
-            "WINDIR": os.environ["WINDIR"],
+            "PATHEXT": os.environ.get("PATHEXT", ""),
+            "SYSTEMROOT": os.environ.get("SYSTEMROOT", ""),
+            "WINDIR": os.environ.get("WINDIR", ""),
             # server
             "DOCUMENT_ROOT": os.getcwd().replace(os.path.sep, "/"),
             "GATEWAY_INTERFACE": "CGI/1.1",
