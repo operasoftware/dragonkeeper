@@ -3,6 +3,7 @@
 
 import asyncore
 import sys
+import shlex
 from time import time
 from os import stat, listdir
 from os.path import isfile, isdir
@@ -131,7 +132,7 @@ class HTTPConnection(asyncore.dispatcher):
             "REMOTE_PORT": str(remote_port),
             "REQUEST_METHOD": self.method,
             "REQUEST_URI": self.REQUEST_URI,
-            "SCRIPT_FILENAME":  cwd.replace(os.path.sep, "/") + self.SCRIPT_NAME,
+            "SCRIPT_FILENAME": cwd.replace(os.path.sep, "/") + self.SCRIPT_NAME,
             "SCRIPT_NAME": self.SCRIPT_NAME,
             "SERVER_ADDR": self.context.SERVER_ADDR,
             "SERVER_ADMIN": "",
@@ -171,8 +172,10 @@ class HTTPConnection(asyncore.dispatcher):
             else:
                 is_failed = True
         if not is_failed:
+            command = shlex.split(first_line)
+            command.append(script_abs_path)
             p = subprocess.Popen(
-                [first_line, script_abs_path], 
+                command,
                 stdout=subprocess.PIPE, 
                 stdin=subprocess.PIPE, 
                 stderr=subprocess.PIPE,
