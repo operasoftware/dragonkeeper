@@ -193,7 +193,7 @@ class MessageMap(object):
 
     def finalize(self):
         if self._print_map:
-            print self.pretty_print_map()
+            self.pretty_print_map()
         self._connection.clear_msg_handler()
         self._callback()
         self._services = None
@@ -324,13 +324,14 @@ class MessageMap(object):
     def pretty_print_map(self):
         indent = 1
         map = self._map
-        ret = []
+        ret = ['message map:']
         ret.append('{')
         for service in map:
             ret.append('%s"%s": {' % (indent * MessageMap.INDENT , service))
             ret.extend(self.pretty_print_commands(map[service], indent + 1))
             ret.append('%s},' % (indent * MessageMap.INDENT))
-        return "\n".join(ret)
+        for chunk in ret:
+            print chunk
 
 def pretty_print_XML(prelude, in_string, format):
     """To pretty print STP 0 messages"""
