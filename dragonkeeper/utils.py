@@ -49,7 +49,9 @@ class MessageMap(object):
     """ to create a description map of all messages 
     to be used to pretty print the payloads by adding the keys to all values"""
     COMMAND_INFO = 7
+    COMMAND_HOST_INFO = 10
     COMMAND_MESSAGE_INFO = 11
+    COMMAND_ENUM_INFO = 12
     INDENT = "    "
     filter = None
 
@@ -101,15 +103,18 @@ class MessageMap(object):
     def has_map():
         return bool(message_map)
     
-    def __init__(self, services, connection, callback, print_map, map=message_map):
+    def __init__(self, services, connection, callback, context, map=message_map):
         self._services = services
+        self.scope_major_version = 0
+        self.scope_minor_version = 0
         self._services_parsed = {}
         self._map = map
         self._connection = connection
         self._callback = callback
-        self._print_map = print_map
+        self._print_map = context.print_message_map
+        self._print_map_services = context.print_message_map_services.split(',')
         self._connection.set_msg_handler(self.default_msg_handler)
-        self.get_message_map()
+        self.get_host_info()
 
     # getting the messages from scope
 
@@ -124,7 +129,54 @@ class MessageMap(object):
             if not self._services_parsed[service]['parsed']:
                 return False
         return True
+
+    def check_enum_map_complete(self):
+        for service in self._services_parsed:
+            if not self._services_parsed[service]['parsed_enums']:
+                return False
+        return True
+
+
+    def get_host_info(self):
+        for service in self._services:
+            if not service.startswith('core-') and not service.startswith('stp-'):
+                self._services_parsed[service] = {
+                    'parsed': False,
+                    'parsed_enums': False,
+                    'raw_commands': None,
+                    'raw_messages': None
+                    }
+        self._connection.send_command_STP_1({
+            MSG_KEY_TYPE: MSG_VALUE_COMMAND,
+            MSG_KEY_SERVICE: "scope",
+            MSG_KEY_COMMAND_ID: self.COMMAND_HOST_INFO,
+            MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
+            MSG_KEY_TAG: tag_manager.set_callback(self.handle_host_info),
+            MSG_KEY_PAYLOAD: '[]'
+            })
+            
                 
+    def handle_host_info(self, msg):
+        if not msg[MSG_KEY_STATUS]:
+            host_info = None
+            try:
+                host_info = eval(msg[MSG_KEY_PAYLOAD].replace("null", "None"))
+            except:
+                print "evaling message failed in handle_host_info in MessageMap"
+            if host_info:
+                for service in host_info[5]:
+                    if service[0] == "scope":
+                        versions = map(int, service[1].split('.'))
+                        self.scope_major_version = versions[0]
+                        self.scope_minor_version = versions[1]
+                if self.scope_minor_version >= 1:
+                    self.get_all_enums()
+                else:
+                    self.get_message_map()
+        else:
+            print "getting host info failed"
+        
+        
     def get_commands(self, service, tag):
         self._connection.send_command_STP_1({
             MSG_KEY_TYPE: MSG_VALUE_COMMAND,
@@ -158,7 +210,7 @@ class MessageMap(object):
             MSG_KEY_COMMAND_ID: self.COMMAND_MESSAGE_INFO,
             MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
             MSG_KEY_TAG: tag,
-            MSG_KEY_PAYLOAD: '["%s", [], 1, 1]' % service
+            MSG_KEY_PAYLOAD: '["%s", [], 1, 1, 1, 1]' % service ## TODO check older scope version
             })
 
     def handle_messages(self, msg, service):
@@ -179,17 +231,44 @@ class MessageMap(object):
                 "handling of message failed in handle_messages in MessageMap:", 
                 msg, 1, 0)
 
+    def get_all_enums(self):
+        for service in self._services_parsed:
+            tag = tag_manager.set_callback(self.handle_enums, {'service': service})
+            self.get_enums(service, tag)
+            
+
+    def get_enums(self, service, tag):
+        self._connection.send_command_STP_1({
+            MSG_KEY_TYPE: MSG_VALUE_COMMAND,
+            MSG_KEY_SERVICE: "scope",
+            MSG_KEY_COMMAND_ID: self.COMMAND_ENUM_INFO,
+            MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
+            MSG_KEY_TAG: tag,
+            MSG_KEY_PAYLOAD: '["%s", [], 1]' % service 
+            })
+
+    def handle_enums(self, msg, service):
+        if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
+            enum_list = None
+            try:
+                enum_list = eval(msg[MSG_KEY_PAYLOAD].replace("null", "None"))
+            except:
+                print "evaling message failed in handle_enums in MessageMap"
+            if not enum_list == None:
+                self._services_parsed[service]['raw_enums'] = enum_list and enum_list[0] or []
+                self._services_parsed[service]['parsed_enums'] = True
+                if self.check_enum_map_complete():
+                    self.get_message_map()
+        else:
+            pretty_print(
+                "handling of message failed in handle_messages in MessageMap:", 
+                msg, 1, 0)
+        
+
     def get_message_map(self):
-        for service in self._services:
-            if not service.startswith('core-') and not service.startswith('stp-'):
-                self._services_parsed[service] = {
-                    'parsed': False,
-                    'raw_commands': None,
-                    'raw_messages': None
-                    }
-                tag = tag_manager.set_callback(self.handle_commands, 
-                                    {"service": service})
-                self.get_commands(service, tag)
+        for service in self._services_parsed:
+            tag = tag_manager.set_callback(self.handle_commands, {"service": service})
+            self.get_commands(service, tag)
 
     def finalize(self):
         if self._print_map:
@@ -211,8 +290,16 @@ class MessageMap(object):
             if msg[MSG_ID] == id:
                 return msg
         return None
+
+    def get_enum(self, list, id):
+        enums = self.get_msg(list, id)
+        ret = {}
+        if enums:
+            for enum in enums[2]:
+                ret[enum[1]] = enum[0]
+        return ret
             
-    def parse_msg(self, msg, msg_list, parsed_list):
+    def parse_msg(self, msg, msg_list, parsed_list, raw_enums):
         NAME = 1
         FIELD_LIST = 2
         FIELD_NAME = 0
@@ -220,6 +307,8 @@ class MessageMap(object):
         FIELD_NUMBER = 2
         FIELD_Q = 3
         FIELD_ID = 4
+        ENUM_ID = 5
+        MSG_IS_UNION = 4
         Q_MAP = {
             0: "required",
             1: "optional",
@@ -229,17 +318,21 @@ class MessageMap(object):
         if msg:
             for field in msg[FIELD_LIST]:
                 name = field[FIELD_NAME]
-                field_obj = {'name': name}
+                field_obj = {'name': name, 'is_union': 0}
                 field_obj['q'] = "required"
                 if (len(field) - 1) >= FIELD_Q and field[FIELD_Q]:
                     field_obj['q'] = Q_MAP[field[FIELD_Q]]
-                if (len(field) - 1) >= FIELD_ID:
+                if (len(field) - 1) >= FIELD_ID and field[FIELD_ID]:
                     if name in parsed_list:
                         field_obj['message'] = {'recursive': parsed_list[name]}
                     else:
                         parsed_list[name] = field_obj
                         msg = self.get_msg(msg_list, field[FIELD_ID])
-                        field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list)
+                        if msg and (len(msg) - 1) >= MSG_IS_UNION and msg[MSG_IS_UNION]:
+                            field_obj['is_union'] = 1                    
+                        field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list, raw_enums)
+                if (len(field) - 1) >= ENUM_ID and field[ENUM_ID]:
+                    field_obj['enum'] = self.get_enum(raw_enums, field[ENUM_ID])
                 ret.append(field_obj)
         return ret
 
@@ -257,17 +350,17 @@ class MessageMap(object):
         # Command MessageInfo
         MSG_LIST = 0
         MSG_ID = 0
-        command_list = self._services_parsed[service]['raw_commands'][COMMAND_LIST]
         raw_msgs = self._services_parsed[service]['raw_messages'][MSG_LIST]
         map = self._map[service] = {}
         command_list = self._services_parsed[service]['raw_commands'][COMMAND_LIST]
+        raw_enums = self._services_parsed[service].get('raw_enums', [])
         for command in command_list:
             command_obj = map[command[NUMBER]] = {}
             command_obj['name'] = command[NAME]
             msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
-            command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {})
+            command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {}, raw_enums)
             msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
-            command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {})
+            command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {}, raw_enums)
 
         if len(self._services_parsed[service]['raw_commands']) - 1 >= EVENT_LIST:
             command_list = self._services_parsed[service]['raw_commands'][EVENT_LIST]
@@ -275,7 +368,9 @@ class MessageMap(object):
                 command_obj = map[command[NUMBER]] = {}
                 command_obj['name'] = command[NAME]
                 msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
-                command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {})
+                command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {}, raw_enums)
+
+
         
 
 
@@ -288,6 +383,9 @@ class MessageMap(object):
             indent += 1
             ret.append('%s"name": "%s",' % (indent * MessageMap.INDENT, field['name']))
             ret.append('%s"q": "%s",' % (indent * MessageMap.INDENT, field['q']))
+            ret.append('%s"is_union": %s,' % (indent * MessageMap.INDENT, field['is_union']))
+            if "enum" in field:
+                ret.append('%s"enum": %s,' % (indent * MessageMap.INDENT, field['enum']))
             if "message" in field:
                 if 'recursive' in field['message']:
                     ret.append('%s"message": <recursive reference>,' % (
@@ -327,9 +425,10 @@ class MessageMap(object):
         ret = ['message map:']
         ret.append('{')
         for service in map:
-            ret.append('%s"%s": {' % (indent * MessageMap.INDENT , service))
-            ret.extend(self.pretty_print_commands(map[service], indent + 1))
-            ret.append('%s},' % (indent * MessageMap.INDENT))
+            if not self._print_map_services or service in self._print_map_services:
+                ret.append('%s"%s": {' % (indent * MessageMap.INDENT , service))
+                ret.extend(self.pretty_print_commands(map[service], indent + 1))
+                ret.append('%s},' % (indent * MessageMap.INDENT))
         for chunk in ret:
             print chunk
 

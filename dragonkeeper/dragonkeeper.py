@@ -29,6 +29,7 @@ APP_DEFAULTS = {
     "force_stp_0": False,
     "format_payload": False,
     "print_message_map": False,
+    "print_message_map_services": '',
     "message_filter": "",
     "verbose_debug": False,
     "cgi_enabled": False
@@ -44,6 +45,7 @@ DEFAULT_TYPES = {
     "force_stp_0": bool,
     "format_payload": bool,
     "print_message_map": bool,
+    "print_message_map_services": str,
     "message_filter": str,
     "verbose_debug": bool,
     "cgi_enabled": bool
@@ -173,6 +175,11 @@ def _parse_options():
         action = "store_true",
         dest = "print_message_map",
         help = "print the command map",
+    )
+    parser.add_option(
+        "--print-command-map-services",
+        dest = "print_message_map_services",
+        help = "a comma separated list of services to print the command map. default '*'",
     )
     parser.add_option(
         "--message-filter",

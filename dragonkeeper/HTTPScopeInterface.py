@@ -128,7 +128,7 @@ class Scope(Singleton):
             self._http_connection = None
         else:
             MessageMap(self._service_list, self._connection, 
-                self._connect_callback, self._http_connection.print_message_map)
+                self._connect_callback, self._http_connection.context)
 
 scope = Scope()
 
@@ -284,7 +284,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         self.debug = context.debug
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
-        self.print_message_map = context.print_message_map
+        self.context = context
         # for backward compatibility
         self.scope_message = self.get_message
         self.send_command = self.post_command
