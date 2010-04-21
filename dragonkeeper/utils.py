@@ -293,11 +293,15 @@ class MessageMap(object):
 
     def get_enum(self, list, id):
         enums = self.get_msg(list, id)
-        ret = {}
+        name = enums[1]
+        ret = []
+        dict = {}
         if enums:
             for enum in enums[2]:
-                ret[enum[1]] = enum[0]
-        return ret
+                dict[enum[1]] = enum[0]
+        for i in range(max(dict.keys()) + 1):
+            ret.append(dict.get(i, ''))
+        return name, ret
             
     def parse_msg(self, msg, msg_list, parsed_list, raw_enums):
         NAME = 1
@@ -320,6 +324,7 @@ class MessageMap(object):
                 name = field[FIELD_NAME]
                 field_obj = {'name': name, 'is_union': 0}
                 field_obj['q'] = "required"
+                field_obj['type'] = field[FIELD_TYPE]
                 if (len(field) - 1) >= FIELD_Q and field[FIELD_Q]:
                     field_obj['q'] = Q_MAP[field[FIELD_Q]]
                 if (len(field) - 1) >= FIELD_ID and field[FIELD_ID]:
@@ -328,11 +333,13 @@ class MessageMap(object):
                     else:
                         parsed_list[name] = field_obj
                         msg = self.get_msg(msg_list, field[FIELD_ID])
+                        
                         if msg and (len(msg) - 1) >= MSG_IS_UNION and msg[MSG_IS_UNION]:
-                            field_obj['is_union'] = 1                    
+                            field_obj['is_union'] = 1  
+                        field_obj['message_name'] = msg and msg[1] or 'default'
                         field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list, raw_enums)
                 if (len(field) - 1) >= ENUM_ID and field[ENUM_ID]:
-                    field_obj['enum'] = self.get_enum(raw_enums, field[ENUM_ID])
+                    field_obj['enum_name'], field_obj['enum'] = self.get_enum(raw_enums, field[ENUM_ID])
                 ret.append(field_obj)
         return ret
 
@@ -382,11 +389,15 @@ class MessageMap(object):
             ret.append('%s{' % (indent * MessageMap.INDENT))
             indent += 1
             ret.append('%s"name": "%s",' % (indent * MessageMap.INDENT, field['name']))
+            ret.append('%s"type": %s,' % (indent * MessageMap.INDENT, field['type']))
             ret.append('%s"q": "%s",' % (indent * MessageMap.INDENT, field['q']))
             ret.append('%s"is_union": %s,' % (indent * MessageMap.INDENT, field['is_union']))
             if "enum" in field:
+            
+                ret.append('%s"enum_name": %s,' % (indent * MessageMap.INDENT, field['enum_name']))
                 ret.append('%s"enum": %s,' % (indent * MessageMap.INDENT, field['enum']))
             if "message" in field:
+                ret.append('%s"message_name: "%s"' % (indent * MessageMap.INDENT, field['message_name']))
                 if 'recursive' in field['message']:
                     ret.append('%s"message": <recursive reference>,' % (
                         indent * MessageMap.INDENT))
@@ -478,14 +489,23 @@ def pretty_print_XML(prelude, in_string, format):
 
 def pretty_print_payload_item(indent, name, definition, item):
     INDENT = "  "
-    return "%s%s: %s" % (
+    if definition['is_union']:
+        definition = definition['message'][item[0] - 1]
+        if 'message' in definition:
+            item = item[1:]
+        else:
+            item = item[1]
+    ret = "%s%s: %s" % (
           indent * INDENT,
           name,
           "message" in definition and \
             "\n" + pretty_print_payload(item,
                             definition["message"], indent=indent+1) or \
+            "enum" in definition and \
+                "%s (%s)" % (definition['enum'][item], item) or
             (item == None and "null" or isinstance(item, str) and
              "\"%s\"" % item or item))
+    return ret
 
 
 def pretty_print_payload(payload, definitions, indent=2):
