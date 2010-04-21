@@ -107,6 +107,7 @@ class MessageMap(object):
         self._services = services
         self.scope_major_version = 0
         self.scope_minor_version = 0
+        self.message_info_payload = '["%s", [], 1, 1]'
         self._services_parsed = {}
         self._map = map
         self._connection = connection
@@ -170,6 +171,7 @@ class MessageMap(object):
                         self.scope_major_version = versions[0]
                         self.scope_minor_version = versions[1]
                 if self.scope_minor_version >= 1:
+                    self.message_info_payload = '["%s", [], 1, 1, 1, 1]'
                     self.get_all_enums()
                 else:
                     self.get_message_map()
@@ -210,7 +212,7 @@ class MessageMap(object):
             MSG_KEY_COMMAND_ID: self.COMMAND_MESSAGE_INFO,
             MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
             MSG_KEY_TAG: tag,
-            MSG_KEY_PAYLOAD: '["%s", [], 1, 1, 1, 1]' % service ## TODO check older scope version
+            MSG_KEY_PAYLOAD: self.message_info_payload % service
             })
 
     def handle_messages(self, msg, service):
@@ -377,10 +379,6 @@ class MessageMap(object):
                 msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
                 command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {}, raw_enums)
 
-
-        
-
-
     # pretty print message map
 
     def pretty_print_fields(self, fields, indent):
@@ -489,13 +487,15 @@ def pretty_print_XML(prelude, in_string, format):
 
 def pretty_print_payload_item(indent, name, definition, item):
     INDENT = "  "
+    if 'message' in definition and 'recursive' in definition['message']:
+        definition['message'] = definition['message']['recursive']['message']
     if definition['is_union']:
         definition = definition['message'][item[0] - 1]
         if 'message' in definition:
             item = item[1:]
         else:
             item = item[1]
-    ret = "%s%s: %s" % (
+    return "%s%s: %s" % (
           indent * INDENT,
           name,
           "message" in definition and \
@@ -505,7 +505,6 @@ def pretty_print_payload_item(indent, name, definition, item):
                 "%s (%s)" % (definition['enum'][item], item) or
             (item == None and "null" or isinstance(item, str) and
              "\"%s\"" % item or item))
-    return ret
 
 
 def pretty_print_payload(payload, definitions, indent=2):
