@@ -113,7 +113,7 @@ class MessageMap(object):
         self._connection = connection
         self._callback = callback
         self._print_map = context.print_message_map
-        self._print_map_services = context.print_message_map_services.split(',')
+        self._print_map_services = filter(bool, context.print_message_map_services.split(','))
         self._connection.set_msg_handler(self.default_msg_handler)
         self.get_host_info()
 
@@ -344,8 +344,6 @@ class MessageMap(object):
                             field_obj['is_union'] = 1  
                         field_obj['message_name'] = msg and msg[1] or 'default'
                         field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list, raw_enums)
-                        if not field_obj['message']:
-                            raise ">>>> missing message"
                 if (len(field) - 1) >= ENUM_ID and field[ENUM_ID]:
                     field_obj['enum_name'], field_obj['enum'] = self.get_enum(raw_enums, field[ENUM_ID])
                 ret.append(field_obj)
