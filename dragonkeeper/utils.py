@@ -331,6 +331,10 @@ class MessageMap(object):
                     field_obj['q'] = Q_MAP[field[FIELD_Q]]
                 if (len(field) - 1) >= FIELD_ID and field[FIELD_ID]:
                     if name in parsed_list:
+                        # if the name is already in the list there 
+                        # doesn't mean that the message is already 
+                        # set on the according object because 
+                        # parse_msg is called recursivly 
                         field_obj['message'] = {'recursive': parsed_list[name]}
                     else:
                         parsed_list[name] = field_obj
@@ -340,6 +344,8 @@ class MessageMap(object):
                             field_obj['is_union'] = 1  
                         field_obj['message_name'] = msg and msg[1] or 'default'
                         field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list, raw_enums)
+                        if not field_obj['message']:
+                            raise ">>>> missing message"
                 if (len(field) - 1) >= ENUM_ID and field[ENUM_ID]:
                     field_obj['enum_name'], field_obj['enum'] = self.get_enum(raw_enums, field[ENUM_ID])
                 ret.append(field_obj)
@@ -511,7 +517,6 @@ def pretty_print_payload(payload, definitions, indent=2):
     INDENT = "  "
     ret = []
     type_str = type("")
-    # TODO message: <recursive reference>
     if definitions:
         try:
             for item, definition in zip(payload, definitions):
@@ -545,7 +550,6 @@ def check_message(service, command, message_type):
                     return True
     return False
     
-# TODO handle 'recursive'
 def pretty_print(prelude, msg, format, format_payload):
     service = msg[MSG_KEY_SERVICE]
     command_def = message_map.get(service, {}).get(msg[MSG_KEY_COMMAND_ID], None)
