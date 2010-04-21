@@ -331,7 +331,7 @@ class MessageMap(object):
                     field_obj['q'] = Q_MAP[field[FIELD_Q]]
                 if (len(field) - 1) >= FIELD_ID and field[FIELD_ID]:
                     if name in parsed_list:
-                        # if the name is already in the list there 
+                        # if the name is already in the list  
                         # doesn't mean that the message is already 
                         # set on the according object because 
                         # parse_msg is called recursivly 
