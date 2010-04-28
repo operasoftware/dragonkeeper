@@ -107,7 +107,6 @@ class MessageMap(object):
         self._services = services
         self.scope_major_version = 0
         self.scope_minor_version = 0
-        self.message_info_payload = '["%s", [], 1, 1]'
         self._services_parsed = {}
         self._map = map
         self._connection = connection
@@ -171,7 +170,6 @@ class MessageMap(object):
                         self.scope_major_version = versions[0]
                         self.scope_minor_version = versions[1]
                 if self.scope_minor_version >= 1:
-                    self.message_info_payload = '["%s", [], 1, 1, 1, 1]'
                     self.get_all_enums()
                 else:
                     self.get_message_map()
@@ -212,7 +210,7 @@ class MessageMap(object):
             MSG_KEY_COMMAND_ID: self.COMMAND_MESSAGE_INFO,
             MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
             MSG_KEY_TAG: tag,
-            MSG_KEY_PAYLOAD: self.message_info_payload % service
+            MSG_KEY_PAYLOAD: '["%s", [], 1, 1]' % service
             })
 
     def handle_messages(self, msg, service):
@@ -296,16 +294,13 @@ class MessageMap(object):
     def get_enum(self, list, id):
         enums = self.get_msg(list, id)
         name = enums[1]
-        ret = []
         dict = {}
-        if enums:
+        if enums and len(enums) == 3: ## TODO len check is workaround
             for enum in enums[2]:
                 dict[enum[1]] = enum[0]
-        for i in range(max(dict.keys()) + 1):
-            ret.append(dict.get(i, ''))
-        return name, ret
+        return name, dict
             
-    def parse_msg(self, msg, msg_list, parsed_list, raw_enums):
+    def parse_msg(self, msg, msg_list, parsed_list, raw_enums, ret):
         NAME = 1
         FIELD_LIST = 2
         FIELD_NAME = 0
@@ -314,38 +309,32 @@ class MessageMap(object):
         FIELD_Q = 3
         FIELD_ID = 4
         ENUM_ID = 5
-        MSG_IS_UNION = 4
         Q_MAP = {
             0: "required",
             1: "optional",
             2: "repeated"
             }
-        ret = []
         if msg:
             for field in msg[FIELD_LIST]:
                 name = field[FIELD_NAME]
-                field_obj = {'name': name, 'is_union': 0}
+                field_obj = {'name': name}
                 field_obj['q'] = "required"
                 field_obj['type'] = field[FIELD_TYPE]
                 if (len(field) - 1) >= FIELD_Q and field[FIELD_Q]:
                     field_obj['q'] = Q_MAP[field[FIELD_Q]]
                 if (len(field) - 1) >= FIELD_ID and field[FIELD_ID]:
                     if name in parsed_list:
-                        # if the name is already in the list  
-                        # doesn't mean that the message is already 
-                        # set on the according object because 
-                        # parse_msg is called recursivly 
-                        field_obj['message'] = {'recursive': parsed_list[name]}
+                        field_obj['message'] = parsed_list[name]['message'] 
+                        field_obj['message_name'] = parsed_list[name]['message_name']
                     else:
                         parsed_list[name] = field_obj
                         msg = self.get_msg(msg_list, field[FIELD_ID])
-                        
-                        if msg and (len(msg) - 1) >= MSG_IS_UNION and msg[MSG_IS_UNION]:
-                            field_obj['is_union'] = 1  
                         field_obj['message_name'] = msg and msg[1] or 'default'
-                        field_obj['message'] = self.parse_msg(msg, msg_list, parsed_list, raw_enums)
+                        field_obj['message'] = []
+                        self.parse_msg(msg, msg_list, parsed_list, raw_enums, field_obj['message'])
                 if (len(field) - 1) >= ENUM_ID and field[ENUM_ID]:
-                    field_obj['enum_name'], field_obj['enum'] = self.get_enum(raw_enums, field[ENUM_ID])
+                    name, numbers = self.get_enum(raw_enums, field[ENUM_ID])
+                    field_obj['enum'] = {'name': name, 'numbers': numbers} 
                 ret.append(field_obj)
         return ret
 
@@ -371,9 +360,9 @@ class MessageMap(object):
             command_obj = map[command[NUMBER]] = {}
             command_obj['name'] = command[NAME]
             msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
-            command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {}, raw_enums)
+            command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {}, raw_enums, [])
             msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
-            command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {}, raw_enums)
+            command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {}, raw_enums, [])
 
         if len(self._services_parsed[service]['raw_commands']) - 1 >= EVENT_LIST:
             command_list = self._services_parsed[service]['raw_commands'][EVENT_LIST]
@@ -381,53 +370,63 @@ class MessageMap(object):
                 command_obj = map[command[NUMBER]] = {}
                 command_obj['name'] = command[NAME]
                 msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
-                command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {}, raw_enums)
+                command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {}, raw_enums, [])
 
     # pretty print message map
 
-    def pretty_print_fields(self, fields, indent):
+    def pretty_print_field(self, field, indent, list, field_name=''):
         ret = []
-        for field in fields:
+        if field_name:
+            ret.append('%s"%s": {' % (indent * MessageMap.INDENT, field_name))
+        else:
             ret.append('%s{' % (indent * MessageMap.INDENT))
-            indent += 1
-            ret.append('%s"name": "%s",' % (indent * MessageMap.INDENT, field['name']))
-            ret.append('%s"type": %s,' % (indent * MessageMap.INDENT, field['type']))
-            ret.append('%s"q": "%s",' % (indent * MessageMap.INDENT, field['q']))
-            ret.append('%s"is_union": %s,' % (indent * MessageMap.INDENT, field['is_union']))
-            if "enum" in field:
-            
-                ret.append('%s"enum_name": %s,' % (indent * MessageMap.INDENT, field['enum_name']))
-                ret.append('%s"enum": %s,' % (indent * MessageMap.INDENT, field['enum']))
-            if "message" in field:
-                ret.append('%s"message_name: "%s"' % (indent * MessageMap.INDENT, field['message_name']))
-                if 'recursive' in field['message']:
-                    ret.append('%s"message": <recursive reference>,' % (
-                        indent * MessageMap.INDENT))
-                else:
-                    ret.append('%s"message": [' % (indent * MessageMap.INDENT))
-                    ret.extend(self.pretty_print_fields(field['message'], indent + 1))
-                    ret.append('%s],' % (indent * MessageMap.INDENT))
-            indent -= 1
-            ret.append('%s},' % (indent * MessageMap.INDENT))
+        indent += 1
+        for key in field.keys():
+            if isinstance(field[key], str) or isinstance(field[key], int):
+                value = isinstance(field[key], str) and '"%s"' % field[key] or field[key]
+                if isinstance(key, str):
+                    key = '"%s"' % key
+                ret.append('%s%s: %s,' % (indent * MessageMap.INDENT, key, value))
+        for key in field.keys():
+            if isinstance(field[key], dict):
+                ret.extend(self.pretty_print_field(field[key], indent, list, key))
+        if "message" in field:
+            message_name = field['message_name']
+            if message_name in list:
+                ret.append('%s"message": <recursive reference>,' % (
+                    indent * MessageMap.INDENT))
+            else:
+                list[message_name] = True
+                ret.append('%s"message": [' % (indent * MessageMap.INDENT))
+                ret.extend(self.pretty_print_fields(field['message'], indent + 1, list))
+                ret.append('%s],' % (indent * MessageMap.INDENT))
+        indent -= 1
+        ret.append('%s},' % (indent * MessageMap.INDENT))
         return ret
 
-    def pretty_print_message(self, message, indent):
+    def pretty_print_fields(self, fields, indent, list):
+        ret = []
+        for field in fields:
+            ret.extend(self.pretty_print_field(field, indent, list))
+        return ret
+
+    def pretty_print_message(self, message, indent, list):
         ret = []
         ret.append('%s"name": "%s",' % (indent * MessageMap.INDENT , message['name']))
         for key in [1, 2, 3]:
             if key in message:
                 ret.append('%s%s: [' % (indent * MessageMap.INDENT , key))
-                ret.extend(self.pretty_print_fields(message[key], indent + 1))
+                ret.extend(self.pretty_print_fields(message[key], indent + 1, list))
                 ret.append('%s],' % (indent * MessageMap.INDENT))
         return ret
 
-    def pretty_print_commands(self, commands, indent):
+    def pretty_print_commands(self, commands, indent, list):
         ret = []
         keys = commands.keys()
         keys.sort()
         for key in keys:
             ret.append('%s%s: {' % (indent * MessageMap.INDENT , key))
-            ret.extend(self.pretty_print_message(commands[key], indent + 1))
+            ret.extend(self.pretty_print_message(commands[key], indent + 1, list))
             ret.append('%s},' % (indent * MessageMap.INDENT))
         return ret
             
@@ -440,7 +439,7 @@ class MessageMap(object):
         for service in map:
             if not self._print_map_services or service in self._print_map_services:
                 ret.append('%s"%s": {' % (indent * MessageMap.INDENT , service))
-                ret.extend(self.pretty_print_commands(map[service], indent + 1))
+                ret.extend(self.pretty_print_commands(map[service], indent + 1, {}))
                 ret.append('%s},' % (indent * MessageMap.INDENT))
         for chunk in ret:
             print chunk
@@ -491,27 +490,26 @@ def pretty_print_XML(prelude, in_string, format):
 
 def pretty_print_payload_item(indent, name, definition, item):
     INDENT = "  "
-    if 'message' in definition and 'recursive' in definition['message']:
-        definition['message'] = definition['message']['recursive']['message']
-    if definition['is_union']:
-        definition = definition['message'][item[0] - 1]
-        if 'message' in definition:
-            item = item[1:]
-        else:
-            item = item[1]
-    return "%s%s: %s" % (
-          indent * INDENT,
-          name,
-          "message" in definition and \
-            "\n" + pretty_print_payload(item,
-                            definition["message"], indent=indent+1) or \
-            "enum" in definition and \
-                "%s (%s)" % (definition['enum'][item], item) or
-            (item == None and "null" or isinstance(item, str) and
-             "\"%s\"" % item or item))
+    if "message" in definition:
+        ret = ["%s%s:" % (indent * INDENT, name)]
+        ret.extend(pretty_print_payload(item,
+                            definition["message"], indent=indent+1))
+    else:
+        ret = [
+            "%s%s: %s" % (
+                indent * INDENT, 
+                name,
+                "enum" in definition and \
+                    "%s (%s)" % (definition['enum']['numbers'][item], item) or
+                item == None and "null" or \
+                isinstance(item, str) and "\"%s\"" % item or 
+                item
+            )
+        ]
+    return ret
 
 
-def pretty_print_payload(payload, definitions, indent=2):
+def pretty_print_payload(payload, definitions, indent=1):
     INDENT = "  "
     ret = []
     type_str = type("")
@@ -521,24 +519,27 @@ def pretty_print_payload(payload, definitions, indent=2):
                 if definition["q"] == "repeated":
                     ret.append("%s%s:" % (indent * INDENT, definition['name']))
                     for sub_item in item:
-                        ret.append(pretty_print_payload_item(
+                        ret.extend(pretty_print_payload_item(
                                 indent + 1,
                                 definition['name'].replace("List", ""),
                                 definition,
                                 sub_item))
                 else:
-                    ret.append(pretty_print_payload_item(
+                    ret.extend(pretty_print_payload_item(
                             indent,
                             definition['name'],
                             definition,
                             item))
-            return "\n".join(ret)
+            # return "\n".join(ret)
         except Exception, msg:
-            print "failed to pretty print the paylod. wrong message structure?"
-            print "%spayload:" % INDENT, payload
-            print "%sdefinition:" % INDENT, definitions
-    else:
-        return ""
+            ret.extend([
+                msg, 
+                "failed to pretty print the paylod. wrong message structure?",
+                "%spayload: %s" % (INDENT, payload),
+                "%sdefinition: %s" % (INDENT, definitions)
+            ])
+
+    return ret
 
 def check_message(service, command, message_type):
     if MessageMap.filter and service in MessageMap.filter and \
@@ -578,8 +579,10 @@ def pretty_print(prelude, msg, format, format_payload):
                     print "failed evaling the payload in pretty_print"
                 print "  payload:"
                 if type(payload) == type([]) and command_def:
-                    print pretty_print_payload(payload, 
-                                    command_def.get(msg[MSG_KEY_TYPE], None)), "\n"
+                    for chunk in pretty_print_payload(payload, 
+                                    command_def.get(msg[MSG_KEY_TYPE], None)):
+                        print chunk
+                    print "\n"
                 else:
                     print "    ", msg[MSG_KEY_PAYLOAD], "\n"
             else:
