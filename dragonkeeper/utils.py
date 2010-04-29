@@ -127,9 +127,9 @@ class MessageMap(object):
         self._connection.set_msg_handler(self.default_msg_handler)
         self.request_host_info()
 
-    # ===============================
-    # getting the messages from scope
-    # ===============================
+    # ===========================
+    # get the messages from scope
+    # ===========================
 
     def request_host_info(self):
         for service in self._services:
@@ -267,9 +267,9 @@ class MessageMap(object):
                 "handling of message failed in default_msg_handler in MessageMap:", 
                 msg, 1, 0)
                 
-    # ========================
-    # building the message map
-    # ========================
+    # =======================
+    # create the message maps
+    # =======================
 
     def get_msg(self, list, id):
         MSG_ID = 0
@@ -362,9 +362,9 @@ class MessageMap(object):
                 msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
                 command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {}, raw_enums, [])
 
-    # ========================
-    # pretty print message map
-    # ========================
+    # =========================
+    # pretty print message maps
+    # =========================
 
     def pretty_print_field(self, field, indent, list, field_name=''):
         if field_name:
@@ -492,7 +492,7 @@ def pretty_print(prelude, msg, format, format_payload):
                                 payload, 
                                 command_def.get(msg[MSG_KEY_TYPE], None))
                     except Exception, msg:
-                        print msg 
+                        # print msg 
                         print "failed to pretty print the paylod. wrong message structure?"
                         print "%spayload: %s" % (INDENT, payload)
                         print "%sdefinition: %s" % (INDENT, definitions)
