@@ -2,6 +2,19 @@ import re
 from common import Singleton
 from maps import status_map, format_type_map, message_type_map, message_map
 
+def _parse_json(msg):
+    payload = None
+    try:
+        payload = eval(msg.replace(",null", ",None"))
+    except:
+        print "failed evaling message in parse_json"
+    return payload
+
+try:
+    from json import loads as parse_json
+except:
+    globals()['parse_json'] = _parse_json
+
 MSG_KEY_TYPE = 0
 MSG_KEY_SERVICE = 1
 MSG_KEY_COMMAND_ID = 2
@@ -14,6 +27,7 @@ MSG_KEY_PAYLOAD = 8
 MSG_VALUE_COMMAND = 1
 MSG_VALUE_FORMAT_JSON = 1
 MSG_TYPE_ERROR = 4
+INDENT = "  "
 
 class TagManager(Singleton):
 
@@ -41,9 +55,6 @@ class TagManager(Singleton):
         return False
         
 tag_manager = TagManager()
-
-
-
 
 class MessageMap(object):
     """ to create a description map of all messages 
@@ -114,30 +125,13 @@ class MessageMap(object):
         self._print_map = context.print_message_map
         self._print_map_services = filter(bool, context.print_message_map_services.split(','))
         self._connection.set_msg_handler(self.default_msg_handler)
-        self.get_host_info()
+        self.request_host_info()
 
+    # ===============================
     # getting the messages from scope
+    # ===============================
 
-    def default_msg_handler(self, msg):
-        if not tag_manager.handle_message(msg):
-            pretty_print(
-                "handling of message failed in default_msg_handler in MessageMap:", 
-                msg, 1, 0) 
-    
-    def check_message_map_complete(self):
-        for service in self._services_parsed:
-            if not self._services_parsed[service]['parsed']:
-                return False
-        return True
-
-    def check_enum_map_complete(self):
-        for service in self._services_parsed:
-            if not self._services_parsed[service]['parsed_enums']:
-                return False
-        return True
-
-
-    def get_host_info(self):
+    def request_host_info(self):
         for service in self._services:
             if not service.startswith('core-') and not service.startswith('stp-'):
                 self._services_parsed[service] = {
@@ -154,15 +148,10 @@ class MessageMap(object):
             MSG_KEY_TAG: tag_manager.set_callback(self.handle_host_info),
             MSG_KEY_PAYLOAD: '[]'
             })
-            
-                
+
     def handle_host_info(self, msg):
         if not msg[MSG_KEY_STATUS]:
-            host_info = None
-            try:
-                host_info = eval(msg[MSG_KEY_PAYLOAD].replace("null", "None"))
-            except:
-                print "evaling message failed in handle_host_info in MessageMap"
+            host_info = parse_json(msg[MSG_KEY_PAYLOAD])
             if host_info:
                 for service in host_info[5]:
                     if service[0] == "scope":
@@ -170,40 +159,62 @@ class MessageMap(object):
                         self.scope_major_version = versions[0]
                         self.scope_minor_version = versions[1]
                 if self.scope_minor_version >= 1:
-                    self.get_all_enums()
+                    self.request_enums()
                 else:
-                    self.get_message_map()
+                    self.request_infos()
         else:
             print "getting host info failed"
-        
-        
-    def get_commands(self, service, tag):
-        self._connection.send_command_STP_1({
-            MSG_KEY_TYPE: MSG_VALUE_COMMAND,
-            MSG_KEY_SERVICE: "scope",
-            MSG_KEY_COMMAND_ID: self.COMMAND_INFO,
-            MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
-            MSG_KEY_TAG: tag,
-            MSG_KEY_PAYLOAD: '["%s"]' % service
-            })
 
-    def handle_commands(self, msg, service):
+    def request_enums(self):
+        for service in self._services_parsed:
+            tag = tag_manager.set_callback(self.handle_enums, {'service': service})
+            self._connection.send_command_STP_1({
+                MSG_KEY_TYPE: MSG_VALUE_COMMAND,
+                MSG_KEY_SERVICE: "scope",
+                MSG_KEY_COMMAND_ID: self.COMMAND_ENUM_INFO,
+                MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
+                MSG_KEY_TAG: tag,
+                MSG_KEY_PAYLOAD: '["%s", [], 1]' % service 
+                })
+
+    def handle_enums(self, msg, service):
         if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
-            command_list = None
-            try:
-                command_list = eval(msg[MSG_KEY_PAYLOAD].replace("null", "None"))
-            except:
-                print "evaling message failed in handle_commands in MessageMap"
+            enum_list = parse_json(msg[MSG_KEY_PAYLOAD])
+            if not enum_list == None:
+                self._services_parsed[service]['raw_enums'] = enum_list and enum_list[0] or []
+                self._services_parsed[service]['parsed_enums'] = True
+                if self.check_enum_map_complete():
+                    self.request_infos()
+        else:
+            pretty_print(
+                "handling of message failed in handle_messages in MessageMap:", 
+                msg, 1, 0)
+
+    def request_infos(self):
+        for service in self._services_parsed:
+            tag = tag_manager.set_callback(self.handle_info, {"service": service})
+            self._connection.send_command_STP_1({
+                MSG_KEY_TYPE: MSG_VALUE_COMMAND,
+                MSG_KEY_SERVICE: "scope",
+                MSG_KEY_COMMAND_ID: self.COMMAND_INFO,
+                MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
+                MSG_KEY_TAG: tag,
+                MSG_KEY_PAYLOAD: '["%s"]' % service
+                })
+
+    def handle_info(self, msg, service):
+        if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
+            command_list = parse_json(msg[MSG_KEY_PAYLOAD])
             if command_list:
                 self._services_parsed[service]['raw_commands'] = command_list
                 tag = tag_manager.set_callback(self.handle_messages, {'service': service})
-                self.get_messages(service, tag)
+                self.request_messages(service, tag)
         else:
             pretty_print(
-                "handling of message failed in handle_commands in MessageMap:", 
+                "handling of message failed in handle_info in MessageMap:", 
                 msg, 1, 0)
 
-    def get_messages(self, service, tag):
+    def request_messages(self, service, tag):
         self._connection.send_command_STP_1({
             MSG_KEY_TYPE: MSG_VALUE_COMMAND,
             MSG_KEY_SERVICE: "scope",
@@ -215,11 +226,7 @@ class MessageMap(object):
 
     def handle_messages(self, msg, service):
         if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
-            message_list = None
-            try:
-                message_list = eval(msg[MSG_KEY_PAYLOAD].replace("null", "None"))
-            except:
-                print "evaling message failed in handle_messages in MessageMap"
+            message_list = parse_json(msg[MSG_KEY_PAYLOAD])
             if message_list:
                 self._services_parsed[service]['raw_messages'] = message_list
                 self.parse_raw_lists(service)
@@ -231,48 +238,9 @@ class MessageMap(object):
                 "handling of message failed in handle_messages in MessageMap:", 
                 msg, 1, 0)
 
-    def get_all_enums(self):
-        for service in self._services_parsed:
-            tag = tag_manager.set_callback(self.handle_enums, {'service': service})
-            self.get_enums(service, tag)
-            
-
-    def get_enums(self, service, tag):
-        self._connection.send_command_STP_1({
-            MSG_KEY_TYPE: MSG_VALUE_COMMAND,
-            MSG_KEY_SERVICE: "scope",
-            MSG_KEY_COMMAND_ID: self.COMMAND_ENUM_INFO,
-            MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
-            MSG_KEY_TAG: tag,
-            MSG_KEY_PAYLOAD: '["%s", [], 1]' % service 
-            })
-
-    def handle_enums(self, msg, service):
-        if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
-            enum_list = None
-            try:
-                enum_list = eval(msg[MSG_KEY_PAYLOAD].replace("null", "None"))
-            except:
-                print "evaling message failed in handle_enums in MessageMap"
-            if not enum_list == None:
-                self._services_parsed[service]['raw_enums'] = enum_list and enum_list[0] or []
-                self._services_parsed[service]['parsed_enums'] = True
-                if self.check_enum_map_complete():
-                    self.get_message_map()
-        else:
-            pretty_print(
-                "handling of message failed in handle_messages in MessageMap:", 
-                msg, 1, 0)
-        
-
-    def get_message_map(self):
-        for service in self._services_parsed:
-            tag = tag_manager.set_callback(self.handle_commands, {"service": service})
-            self.get_commands(service, tag)
-
     def finalize(self):
         if self._print_map:
-            self.pretty_print_map()
+            self.pretty_print_message_map()
         self._connection.clear_msg_handler()
         self._callback()
         self._services = None
@@ -280,9 +248,28 @@ class MessageMap(object):
         self._map = None
         self._connection = None
         self._callback = None
+    
+    def check_message_map_complete(self):
+        for service in self._services_parsed:
+            if not self._services_parsed[service]['parsed']:
+                return False
+        return True
 
+    def check_enum_map_complete(self):
+        for service in self._services_parsed:
+            if not self._services_parsed[service]['parsed_enums']:
+                return False
+        return True
 
-    # message parsing
+    def default_msg_handler(self, msg):
+        if not tag_manager.handle_message(msg):
+            pretty_print(
+                "handling of message failed in default_msg_handler in MessageMap:", 
+                msg, 1, 0)
+                
+    # ========================
+    # building the message map
+    # ========================
 
     def get_msg(self, list, id):
         MSG_ID = 0
@@ -295,7 +282,7 @@ class MessageMap(object):
         enums = self.get_msg(list, id)
         name = enums[1]
         dict = {}
-        if enums and len(enums) == 3: ## TODO len check is workaround
+        if enums and len(enums) == 3:
             for enum in enums[2]:
                 dict[enum[1]] = enum[0]
         return name, dict
@@ -313,13 +300,15 @@ class MessageMap(object):
             0: "required",
             1: "optional",
             2: "repeated"
-            }
+        }
         if msg:
             for field in msg[FIELD_LIST]:
                 name = field[FIELD_NAME]
-                field_obj = {'name': name}
-                field_obj['q'] = "required"
-                field_obj['type'] = field[FIELD_TYPE]
+                field_obj = {
+                    'name': name,
+                    'q': 'required',
+                    'type': field[FIELD_TYPE],
+                }
                 if (len(field) - 1) >= FIELD_Q and field[FIELD_Q]:
                     field_obj['q'] = Q_MAP[field[FIELD_Q]]
                 if (len(field) - 1) >= FIELD_ID and field[FIELD_ID]:
@@ -331,7 +320,8 @@ class MessageMap(object):
                         msg = self.get_msg(msg_list, field[FIELD_ID])
                         field_obj['message_name'] = msg and msg[1] or 'default'
                         field_obj['message'] = []
-                        self.parse_msg(msg, msg_list, parsed_list, raw_enums, field_obj['message'])
+                        self.parse_msg(msg, msg_list, parsed_list, 
+                                            raw_enums, field_obj['message'])
                 if (len(field) - 1) >= ENUM_ID and field[ENUM_ID]:
                     name, numbers = self.get_enum(raw_enums, field[ENUM_ID])
                     field_obj['enum'] = {'name': name, 'numbers': numbers} 
@@ -372,81 +362,162 @@ class MessageMap(object):
                 msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
                 command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {}, raw_enums, [])
 
+    # ========================
     # pretty print message map
+    # ========================
 
     def pretty_print_field(self, field, indent, list, field_name=''):
-        ret = []
         if field_name:
-            ret.append('%s"%s": {' % (indent * MessageMap.INDENT, field_name))
-        else:
-            ret.append('%s{' % (indent * MessageMap.INDENT))
+            field_name = '"%s": ' % field_name
+        print '%s%s{' % (indent * MessageMap.INDENT, field_name)
         indent += 1
-        for key in field.keys():
-            if isinstance(field[key], str) or isinstance(field[key], int):
-                value = isinstance(field[key], str) and '"%s"' % field[key] or field[key]
+        keys = field.keys()
+        for key in keys:
+            value = field[key]
+            if isinstance(value, str) or isinstance(value, int):
+                if isinstance(value, str):
+                    value =  '"%s"' % value 
                 if isinstance(key, str):
                     key = '"%s"' % key
-                ret.append('%s%s: %s,' % (indent * MessageMap.INDENT, key, value))
-        for key in field.keys():
+                print '%s%s: %s,' % (indent * MessageMap.INDENT, key, value)
+        for key in keys:
             if isinstance(field[key], dict):
-                ret.extend(self.pretty_print_field(field[key], indent, list, key))
+                self.pretty_print_field(field[key], indent, list, key)
         if "message" in field:
             message_name = field['message_name']
             if message_name in list:
-                ret.append('%s"message": <recursive reference>,' % (
-                    indent * MessageMap.INDENT))
+                print '%s"message": <circular reference>,' % (
+                    indent * MessageMap.INDENT)
             else:
                 list[message_name] = True
-                ret.append('%s"message": [' % (indent * MessageMap.INDENT))
-                ret.extend(self.pretty_print_fields(field['message'], indent + 1, list))
-                ret.append('%s],' % (indent * MessageMap.INDENT))
+                print '%s"message": [' % (indent * MessageMap.INDENT)
+                self.pretty_print_fields(field['message'], indent + 1, list)
+                print '%s],' % (indent * MessageMap.INDENT)
         indent -= 1
-        ret.append('%s},' % (indent * MessageMap.INDENT))
-        return ret
+        print '%s},' % (indent * MessageMap.INDENT)
 
     def pretty_print_fields(self, fields, indent, list):
-        ret = []
         for field in fields:
-            ret.extend(self.pretty_print_field(field, indent, list))
-        return ret
+            self.pretty_print_field(field, indent, list)
 
     def pretty_print_message(self, message, indent, list):
-        ret = []
-        ret.append('%s"name": "%s",' % (indent * MessageMap.INDENT , message['name']))
+        print '%s"name": "%s",' % (indent * MessageMap.INDENT , message['name'])
         for key in [1, 2, 3]:
             if key in message:
-                ret.append('%s%s: [' % (indent * MessageMap.INDENT , key))
-                ret.extend(self.pretty_print_fields(message[key], indent + 1, list))
-                ret.append('%s],' % (indent * MessageMap.INDENT))
-        return ret
+                print '%s%s: [' % (indent * MessageMap.INDENT , key)
+                self.pretty_print_fields(message[key], indent + 1, list)
+                print '%s],' % (indent * MessageMap.INDENT)
 
-    def pretty_print_commands(self, commands, indent, list):
-        ret = []
-        keys = commands.keys()
+    def pretty_print_messages(self, messages, indent, list):
+        keys = messages.keys()
         keys.sort()
         for key in keys:
-            ret.append('%s%s: {' % (indent * MessageMap.INDENT , key))
-            ret.extend(self.pretty_print_message(commands[key], indent + 1, list))
-            ret.append('%s},' % (indent * MessageMap.INDENT))
-        return ret
+            print '%s%s: {' % (indent * MessageMap.INDENT , key)
+            self.pretty_print_message(messages[key], indent + 1, list)
+            print '%s},' % (indent * MessageMap.INDENT)
             
-            
-    def pretty_print_map(self):
+    def pretty_print_message_map(self):
         indent = 1
         map = self._map
-        ret = ['message map:']
-        ret.append('{')
+        print 'message map:'
+        print '{'
         for service in map:
             if not self._print_map_services or service in self._print_map_services:
-                ret.append('%s"%s": {' % (indent * MessageMap.INDENT , service))
-                ret.extend(self.pretty_print_commands(map[service], indent + 1, {}))
-                ret.append('%s},' % (indent * MessageMap.INDENT))
-        for chunk in ret:
-            print chunk
+                print '%s"%s": {' % (indent * MessageMap.INDENT , service)
+                self.pretty_print_messages(map[service], indent + 1, {})
+                print '%s},' % (indent * MessageMap.INDENT)
+    
+# ===========================
+# pretty print STP/1 messages
+# ===========================
+
+def pretty_print_payload_item(indent, name, definition, item):
+    if "message" in definition:
+        print "%s%s:" % (indent * INDENT, name)
+        pretty_print_payload(item, definition["message"], indent=indent+1)
+    else:
+        value = item
+        if "enum" in definition:
+            value = "%s (%s)" % (definition['enum']['numbers'][item], item)
+        elif item == None:
+            value = "null"
+        elif isinstance(item, str):
+            value = "\"%s\"" % item
+        print "%s%s: %s" % ( indent * INDENT, name, value)
+
+def pretty_print_payload(payload, definitions, indent=2):
+    for item, definition in zip(payload, definitions):
+        if definition["q"] == "repeated":
+            print "%s%s:" % (indent * INDENT, definition['name'])
+            for sub_item in item:
+                pretty_print_payload_item(
+                        indent + 1,
+                        definition['name'].replace("List", ""),
+                        definition,
+                        sub_item)
+        else:
+            pretty_print_payload_item(
+                    indent,
+                    definition['name'],
+                    definition,
+                    item)
+
+def pretty_print(prelude, msg, format, format_payload):
+    service = msg[MSG_KEY_SERVICE]
+    command_def = message_map.get(service, {}).get(msg[MSG_KEY_COMMAND_ID], None)
+    command_name = command_def and command_def.get("name", None) or \
+                                    '<id: %d>' % msg[MSG_KEY_COMMAND_ID]
+    message_type = message_type_map[msg[MSG_KEY_TYPE]]
+    if not MessageMap.filter or check_message(service, command_name, message_type): 
+        print prelude
+        if format:
+            print "  message type:", message_type
+            print "  service:", service
+            print "  command:", command_name
+            print "  format:", format_type_map[msg[MSG_KEY_FORMAT]]
+            if MSG_KEY_STATUS in msg:
+                print "  status:", status_map[msg[MSG_KEY_STATUS]]
+            if MSG_KEY_CLIENT_ID in msg:
+                print "  cid:", msg[MSG_KEY_CLIENT_ID]
+            if MSG_KEY_UUID in msg:
+                print "  uuid:", msg[MSG_KEY_UUID]
+            if MSG_KEY_TAG in msg:
+                print "  tag:", msg[MSG_KEY_TAG]
+            if format_payload and not msg[MSG_KEY_TYPE] == MSG_TYPE_ERROR:
+                payload = parse_json(msg[MSG_KEY_PAYLOAD])
+                print "  payload:"
+                if payload and command_def:
+                    try:
+                        pretty_print_payload(
+                                payload, 
+                                command_def.get(msg[MSG_KEY_TYPE], None))
+                    except Exception, msg:
+                        print msg 
+                        print "failed to pretty print the paylod. wrong message structure?"
+                        print "%spayload: %s" % (INDENT, payload)
+                        print "%sdefinition: %s" % (INDENT, definitions)
+                else:
+                    print "    ", msg[MSG_KEY_PAYLOAD]
+                print "\n"
+            else:
+                print "  payload:", msg[MSG_KEY_PAYLOAD], "\n"
+        else:
+            print msg
+
+def check_message(service, command, message_type):
+    if MessageMap.filter and service in MessageMap.filter and \
+        message_type in MessageMap.filter[service]:
+            for check in MessageMap.filter[service][message_type]:
+                if check(command):
+                    return True
+    return False
+
+# ===========================
+# pretty print STP/0 messages
+# ===========================
 
 def pretty_print_XML(prelude, in_string, format):
     """To pretty print STP 0 messages"""
-    INDENT = "  "
     LF = "\n"
     TEXT = 0
     TAG = 1
@@ -486,106 +557,3 @@ def pretty_print_XML(prelude, in_string, format):
             ret = [in_string]
         in_string = "".join(ret).lstrip(LF)
     print in_string
-
-
-def pretty_print_payload_item(indent, name, definition, item):
-    INDENT = "  "
-    if "message" in definition:
-        ret = ["%s%s:" % (indent * INDENT, name)]
-        ret.extend(pretty_print_payload(item,
-                            definition["message"], indent=indent+1))
-    else:
-        ret = [
-            "%s%s: %s" % (
-                indent * INDENT, 
-                name,
-                "enum" in definition and \
-                    "%s (%s)" % (definition['enum']['numbers'][item], item) or
-                item == None and "null" or \
-                isinstance(item, str) and "\"%s\"" % item or 
-                item
-            )
-        ]
-    return ret
-
-
-def pretty_print_payload(payload, definitions, indent=1):
-    INDENT = "  "
-    ret = []
-    type_str = type("")
-    if definitions:
-        try:
-            for item, definition in zip(payload, definitions):
-                if definition["q"] == "repeated":
-                    ret.append("%s%s:" % (indent * INDENT, definition['name']))
-                    for sub_item in item:
-                        ret.extend(pretty_print_payload_item(
-                                indent + 1,
-                                definition['name'].replace("List", ""),
-                                definition,
-                                sub_item))
-                else:
-                    ret.extend(pretty_print_payload_item(
-                            indent,
-                            definition['name'],
-                            definition,
-                            item))
-            # return "\n".join(ret)
-        except Exception, msg:
-            ret.extend([
-                msg, 
-                "failed to pretty print the paylod. wrong message structure?",
-                "%spayload: %s" % (INDENT, payload),
-                "%sdefinition: %s" % (INDENT, definitions)
-            ])
-
-    return ret
-
-def check_message(service, command, message_type):
-    if MessageMap.filter and service in MessageMap.filter and \
-        message_type in MessageMap.filter[service]:
-            for check in MessageMap.filter[service][message_type]:
-                if check(command):
-                    return True
-    return False
-    
-def pretty_print(prelude, msg, format, format_payload):
-    service = msg[MSG_KEY_SERVICE]
-    command_def = message_map.get(service, {}).get(msg[MSG_KEY_COMMAND_ID], None)
-    command_name = command_def and command_def.get("name", None) or \
-                                    '<id: %d>' % msg[MSG_KEY_COMMAND_ID]
-    message_type = message_type_map[msg[MSG_KEY_TYPE]]
-    if not MessageMap.filter or check_message(service, command_name, message_type): 
-        print prelude
-        if format:
-            print "  message type:", message_type
-            print "  service:", service
-            print "  command:", command_name
-            print "  format:", format_type_map[msg[MSG_KEY_FORMAT]]
-            if MSG_KEY_STATUS in msg:
-                print "  status:", status_map[msg[MSG_KEY_STATUS]]
-            if MSG_KEY_CLIENT_ID in msg:
-                print "  cid:", msg[MSG_KEY_CLIENT_ID]
-            if MSG_KEY_UUID in msg:
-                print "  uuid:", msg[MSG_KEY_UUID]
-            if MSG_KEY_TAG in msg:
-                print "  tag:", msg[MSG_KEY_TAG]
-            if format_payload and not msg[MSG_KEY_TYPE] == MSG_TYPE_ERROR:
-                payload = None
-                try:
-                    # a bit a hack
-                    payload = eval(msg[8].replace(",null", ",None"))
-                except:
-                    print "failed evaling the payload in pretty_print"
-                print "  payload:"
-                if type(payload) == type([]) and command_def:
-                    for chunk in pretty_print_payload(payload, 
-                                    command_def.get(msg[MSG_KEY_TYPE], None)):
-                        print chunk
-                    print "\n"
-                else:
-                    print "    ", msg[MSG_KEY_PAYLOAD], "\n"
-            else:
-                print "  payload:", msg[MSG_KEY_PAYLOAD], "\n"
-        else:
-            print msg
