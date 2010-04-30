@@ -118,7 +118,7 @@ class MessageMap(object):
         self._services = services
         self.scope_major_version = 0
         self.scope_minor_version = 0
-        self._services_parsed = {}
+        self._service_infos = {}
         self._map = map
         self._connection = connection
         self._callback = callback
@@ -134,10 +134,10 @@ class MessageMap(object):
     def request_host_info(self):
         for service in self._services:
             if not service.startswith('core-') and not service.startswith('stp-'):
-                self._services_parsed[service] = {
+                self._service_infos[service] = {
                     'parsed': False,
                     'parsed_enums': False,
-                    'raw_commands': None,
+                    'raw_infos': None,
                     'raw_messages': None
                     }
         self._connection.send_command_STP_1({
@@ -166,7 +166,7 @@ class MessageMap(object):
             print "getting host info failed"
 
     def request_enums(self):
-        for service in self._services_parsed:
+        for service in self._service_infos:
             tag = tag_manager.set_callback(self.handle_enums, {'service': service})
             self._connection.send_command_STP_1({
                 MSG_KEY_TYPE: MSG_VALUE_COMMAND,
@@ -178,20 +178,19 @@ class MessageMap(object):
                 })
 
     def handle_enums(self, msg, service):
-        if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
+        if not msg[MSG_KEY_STATUS] and service in self._service_infos:
             enum_list = parse_json(msg[MSG_KEY_PAYLOAD])
             if not enum_list == None:
-                self._services_parsed[service]['raw_enums'] = enum_list and enum_list[0] or []
-                self._services_parsed[service]['parsed_enums'] = True
-                if self.check_enum_map_complete():
+                self._service_infos[service]['raw_enums'] = enum_list and enum_list[0] or []
+                self._service_infos[service]['parsed_enums'] = True
+                if self.check_map_complete('parsed_enums'):
                     self.request_infos()
         else:
-            pretty_print(
-                "handling of message failed in handle_messages in MessageMap:", 
-                msg, 1, 0)
+            print "handling of message failed in handle_messages in MessageMap:"
+            print msg 
 
     def request_infos(self):
-        for service in self._services_parsed:
+        for service in self._service_infos:
             tag = tag_manager.set_callback(self.handle_info, {"service": service})
             self._connection.send_command_STP_1({
                 MSG_KEY_TYPE: MSG_VALUE_COMMAND,
@@ -203,40 +202,35 @@ class MessageMap(object):
                 })
 
     def handle_info(self, msg, service):
-        if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
+        if not msg[MSG_KEY_STATUS] and service in self._service_infos:
             command_list = parse_json(msg[MSG_KEY_PAYLOAD])
             if command_list:
-                self._services_parsed[service]['raw_commands'] = command_list
+                self._service_infos[service]['raw_infos'] = command_list
                 tag = tag_manager.set_callback(self.handle_messages, {'service': service})
-                self.request_messages(service, tag)
+                self._connection.send_command_STP_1({
+                    MSG_KEY_TYPE: MSG_VALUE_COMMAND,
+                    MSG_KEY_SERVICE: "scope",
+                    MSG_KEY_COMMAND_ID: self.COMMAND_MESSAGE_INFO,
+                    MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
+                    MSG_KEY_TAG: tag,
+                    MSG_KEY_PAYLOAD: '["%s", [], 1, 1]' % service
+                    })
         else:
-            pretty_print(
-                "handling of message failed in handle_info in MessageMap:", 
-                msg, 1, 0)
-
-    def request_messages(self, service, tag):
-        self._connection.send_command_STP_1({
-            MSG_KEY_TYPE: MSG_VALUE_COMMAND,
-            MSG_KEY_SERVICE: "scope",
-            MSG_KEY_COMMAND_ID: self.COMMAND_MESSAGE_INFO,
-            MSG_KEY_FORMAT: MSG_VALUE_FORMAT_JSON,
-            MSG_KEY_TAG: tag,
-            MSG_KEY_PAYLOAD: '["%s", [], 1, 1]' % service
-            })
+            print "handling of message failed in handle_info in MessageMap:"
+            print msg
 
     def handle_messages(self, msg, service):
-        if not msg[MSG_KEY_STATUS] and service in self._services_parsed:
+        if not msg[MSG_KEY_STATUS] and service in self._service_infos:
             message_list = parse_json(msg[MSG_KEY_PAYLOAD])
             if message_list:
-                self._services_parsed[service]['raw_messages'] = message_list
+                self._service_infos[service]['raw_messages'] = message_list
                 self.parse_raw_lists(service)
-                self._services_parsed[service]['parsed'] = True
-                if self.check_message_map_complete():
+                self._service_infos[service]['parsed'] = True
+                if self.check_map_complete('parsed'):
                     self.finalize()
         else:
-            pretty_print(
-                "handling of message failed in handle_messages in MessageMap:", 
-                msg, 1, 0)
+            print "handling of message failed in handle_messages in MessageMap:"
+            print msg
 
     def finalize(self):
         if self._print_map:
@@ -244,28 +238,21 @@ class MessageMap(object):
         self._connection.clear_msg_handler()
         self._callback()
         self._services = None
-        self._services_parsed = None
+        self._service_infos = None
         self._map = None
         self._connection = None
         self._callback = None
-    
-    def check_message_map_complete(self):
-        for service in self._services_parsed:
-            if not self._services_parsed[service]['parsed']:
-                return False
-        return True
 
-    def check_enum_map_complete(self):
-        for service in self._services_parsed:
-            if not self._services_parsed[service]['parsed_enums']:
+    def check_map_complete(self, prop):
+        for service in self._service_infos:
+            if not self._service_infos[service][prop]:
                 return False
         return True
 
     def default_msg_handler(self, msg):
         if not tag_manager.handle_message(msg):
-            pretty_print(
-                "handling of message failed in default_msg_handler in MessageMap:", 
-                msg, 1, 0)
+            print "handling of message failed in default_msg_handler in MessageMap:"
+            print msg
                 
     # =======================
     # create the message maps
@@ -342,25 +329,25 @@ class MessageMap(object):
         # Command MessageInfo
         MSG_LIST = 0
         MSG_ID = 0
-        raw_msgs = self._services_parsed[service]['raw_messages'][MSG_LIST]
         map = self._map[service] = {}
-        command_list = self._services_parsed[service]['raw_commands'][COMMAND_LIST]
-        raw_enums = self._services_parsed[service].get('raw_enums', [])
+        command_list = self._service_infos[service]['raw_infos'][COMMAND_LIST]
+        msgs = self._service_infos[service]['raw_messages'][MSG_LIST]
+        enums = self._service_infos[service].get('enums', [])
         for command in command_list:
             command_obj = map[command[NUMBER]] = {}
             command_obj['name'] = command[NAME]
-            msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
-            command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, raw_msgs, {}, raw_enums, [])
-            msg = self.get_msg(raw_msgs, command[RESPONSE_ID])
-            command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, raw_msgs, {}, raw_enums, [])
+            msg = self.get_msg(msgs, command[MESSAGE_ID])
+            command_obj[MSG_TYPE_COMMAND] = self.parse_msg(msg, msgs, {}, enums, [])
+            msg = self.get_msg(msgs, command[RESPONSE_ID])
+            command_obj[MSG_TYPE_RESPONSE] = self.parse_msg(msg, msgs, {}, enums, [])
 
-        if len(self._services_parsed[service]['raw_commands']) - 1 >= EVENT_LIST:
-            command_list = self._services_parsed[service]['raw_commands'][EVENT_LIST]
-            for command in command_list:
-                command_obj = map[command[NUMBER]] = {}
-                command_obj['name'] = command[NAME]
-                msg = self.get_msg(raw_msgs, command[MESSAGE_ID])
-                command_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, raw_msgs, {}, raw_enums, [])
+        if len(self._service_infos[service]['raw_infos']) - 1 >= EVENT_LIST:
+            event_list = self._service_infos[service]['raw_infos'][EVENT_LIST]
+            for event in event_list:
+                event_obj = map[event[NUMBER]] = {}
+                event_obj['name'] = event[NAME]
+                msg = self.get_msg(msgs, event[MESSAGE_ID])
+                event_obj[MSG_TYPE_EVENT] = self.parse_msg(msg, msgs, {}, enums, [])
 
     # =========================
     # pretty print message maps
