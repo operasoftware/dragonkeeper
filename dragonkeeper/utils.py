@@ -266,6 +266,7 @@ class MessageMap(object):
         return None
 
     def get_enum(self, list, id):
+        print list
         enums = self.get_msg(list, id)
         name = enums[1]
         dict = {}
@@ -332,7 +333,7 @@ class MessageMap(object):
         map = self._map[service] = {}
         command_list = self._service_infos[service]['raw_infos'][COMMAND_LIST]
         msgs = self._service_infos[service]['raw_messages'][MSG_LIST]
-        enums = self._service_infos[service].get('enums', [])
+        enums = self._service_infos[service].get('raw_enums', [])
         for command in command_list:
             command_obj = map[command[NUMBER]] = {}
             command_obj['name'] = command[NAME]
