@@ -432,7 +432,7 @@ class MessageMap(object):
 # ===========================
 
 def pretty_print_payload_item(indent, name, definition, item):
-    if "message" in definition:
+    if item and "message" in definition:
         print "%s%s:" % (indent * INDENT, name)
         pretty_print_payload(item, definition["message"], indent=indent+1)
     else:
@@ -487,15 +487,14 @@ def pretty_print(prelude, msg, format, format_payload):
                 payload = parse_json(msg[MSG_KEY_PAYLOAD])
                 print "  payload:"
                 if payload and command_def:
+                    definition = command_def.get(msg[MSG_KEY_TYPE], None)
                     try:
-                        pretty_print_payload(
-                                payload, 
-                                command_def.get(msg[MSG_KEY_TYPE], None))
+                        pretty_print_payload(payload, definition)
                     except Exception, msg:
                         # print msg 
                         print "failed to pretty print the paylod. wrong message structure?"
                         print "%spayload: %s" % (INDENT, payload)
-                        print "%sdefinition: %s" % (INDENT, definitions)
+                        print "%sdefinition: %s" % (INDENT, definition)
                 else:
                     print "    ", msg[MSG_KEY_PAYLOAD]
                 print "\n"
