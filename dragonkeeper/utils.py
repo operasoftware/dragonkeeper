@@ -266,7 +266,6 @@ class MessageMap(object):
         return None
 
     def get_enum(self, list, id):
-        print list
         enums = self.get_msg(list, id)
         name = enums[1]
         dict = {}
@@ -354,67 +353,51 @@ class MessageMap(object):
     # pretty print message maps
     # =========================
 
-    def pretty_print_field(self, field, indent, list, field_name=''):
-        if field_name:
-            field_name = '"%s": ' % field_name
-        print '%s%s{' % (indent * MessageMap.INDENT, field_name)
+    def pretty_print_object(self, obj, indent, c_list, name=''):
+        INDENT = '    '
+        c_list = [] + c_list
+        if name:
+            name = '%s: ' % self.quote(name)
+        print '%s%s{' % (indent * INDENT, name)
         indent += 1
-        keys = field.keys()
+        keys = obj.keys()
         for key in keys:
-            value = field[key]
-            if isinstance(value, str) or isinstance(value, int):
-                if isinstance(value, str):
-                    value =  '"%s"' % value 
-                if isinstance(key, str):
-                    key = '"%s"' % key
-                print '%s%s: %s,' % (indent * MessageMap.INDENT, key, value)
+            if not (isinstance(obj[key], dict) or isinstance(obj[key], list)):
+                print '%s%s: %s,' % (indent * INDENT, 
+                                        self.quote(key), self.quote(obj[key]))
         for key in keys:
-            if isinstance(field[key], dict):
-                self.pretty_print_field(field[key], indent, list, key)
-        if "message" in field:
-            message_name = field['message_name']
-            if message_name in list:
-                print '%s"message": <circular reference>,' % (
-                    indent * MessageMap.INDENT)
-            else:
-                list[message_name] = True
-                print '%s"message": [' % (indent * MessageMap.INDENT)
-                self.pretty_print_fields(field['message'], indent + 1, list)
-                print '%s],' % (indent * MessageMap.INDENT)
+            if isinstance(obj[key], dict):
+                self.pretty_print_object(obj[key], indent, c_list, key)
+        for key in keys:
+            if isinstance(obj[key], list):
+                if key == "message":
+                    if obj['message_name'] in c_list:
+                        print '%s"message": <circular reference>,' % (
+                            indent * INDENT)
+                        continue
+                    else:
+                        c_list.append(obj['message_name'])
+                if obj[key]:
+                    print '%s%s: [' % (indent * INDENT, self.quote(key))
+                    for item in obj[key]:
+                        self.pretty_print_object(item, indent + 1, c_list)
+                    print '%s],' % (indent * INDENT)
+                else:
+                    print '%s%s: [],' % (indent * INDENT, self.quote(key))
         indent -= 1
-        print '%s},' % (indent * MessageMap.INDENT)
-
-    def pretty_print_fields(self, fields, indent, list):
-        for field in fields:
-            self.pretty_print_field(field, indent, list)
-
-    def pretty_print_message(self, message, indent, list):
-        print '%s"name": "%s",' % (indent * MessageMap.INDENT , message['name'])
-        for key in [1, 2, 3]:
-            if key in message:
-                print '%s%s: [' % (indent * MessageMap.INDENT , key)
-                self.pretty_print_fields(message[key], indent + 1, list)
-                print '%s],' % (indent * MessageMap.INDENT)
-
-    def pretty_print_messages(self, messages, indent, list):
-        keys = messages.keys()
-        keys.sort()
-        for key in keys:
-            print '%s%s: {' % (indent * MessageMap.INDENT , key)
-            self.pretty_print_message(messages[key], indent + 1, list)
-            print '%s},' % (indent * MessageMap.INDENT)
-            
+        print '%s},' % (indent * INDENT)
+  
     def pretty_print_message_map(self):
-        indent = 1
-        map = self._map
         print 'message map:'
         print '{'
-        for service in map:
+        for service in self._map:
             if not self._print_map_services or service in self._print_map_services:
-                print '%s"%s": {' % (indent * MessageMap.INDENT , service)
-                self.pretty_print_messages(map[service], indent + 1, {})
-                print '%s},' % (indent * MessageMap.INDENT)
+                self.pretty_print_object(self._map[service], 1, [], service)
+        print '}'
     
+    def quote(self, value):
+        return isinstance(value, str) and '"%s"' % value or value
+        
 # ===========================
 # pretty print STP/1 messages
 # ===========================
