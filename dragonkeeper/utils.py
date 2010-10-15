@@ -414,7 +414,10 @@ def pretty_print_payload_item(indent, name, definition, item):
             value = "null"
         elif isinstance(item, str):
             value = "\"%s\"" % item
-        print "%s%s: %s" % ( indent * INDENT, name, value)
+        try:
+            print "%s%s: %s" % ( indent * INDENT, name, value)
+        except:
+            print "%s%s: %s%s" % ( indent * INDENT, name, value[0:100], '...')
 
 def pretty_print_payload(payload, definitions, indent=2):
     for item, definition in zip(payload, definitions):
