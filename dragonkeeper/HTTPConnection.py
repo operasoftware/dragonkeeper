@@ -13,7 +13,6 @@ from mimetypes import types_map
 from common import *
 from common import __version__ as VERSION
 
-
 class HTTPConnection(asyncore.dispatcher):
     """To provide a simple HTTP response handler.
     Special methods can be implementd by subclassing this class
@@ -40,7 +39,7 @@ class HTTPConnection(asyncore.dispatcher):
         if raw_parsed_headers:
             # to dispatch any hanging timeout response
             self.flush()
-            (headers_raw, first_line, 
+            (headers_raw, first_line,
                     self.headers, self.in_buffer) = raw_parsed_headers
             method, path, protocol = first_line.split(BLANK, 2)
             self.REQUEST_URI = path
@@ -149,7 +148,7 @@ class HTTPConnection(asyncore.dispatcher):
         if "Content-Length" in self.headers:
             environ["CONTENT_LENGTH"] = self.headers["Content-Length"]
         if "Content-Type" in self.headers:
-            environ["CONTENT_TYPE"] = self.headers["Content-Type"]            
+            environ["CONTENT_TYPE"] = self.headers["Content-Type"]
         for header in self.headers:
             key = "HTTP_%s" % header.upper().replace('-', '_')
             environ[key] = self.headers[header]
@@ -176,8 +175,8 @@ class HTTPConnection(asyncore.dispatcher):
             command.append(script_abs_path)
             p = subprocess.Popen(
                 command,
-                stdout=subprocess.PIPE, 
-                stdin=subprocess.PIPE, 
+                stdout=subprocess.PIPE,
+                stdin=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=environ,
                 cwd=os.path.split(script_abs_path)[0]
@@ -190,30 +189,30 @@ class HTTPConnection(asyncore.dispatcher):
                 content = "\n". join([
                     "Error occured in the subprocess",
                     "-------------------------------",
-                    "", 
+                    "",
                     stderrdata
                 ])
                 headers['Content-Type'] = 'text/plain'
             elif stdoutdata:
                 raw_parsed_headers = parse_headers(CRLF + stdoutdata)
                 if raw_parsed_headers:
-                    (headers_raw, first_line, 
+                    (headers_raw, first_line,
                             headers, content) = raw_parsed_headers
                     if 'Status' in headers:
                         response_code, response_token = \
-                                headers.pop('Status').split(' ', 1)       
+                                headers.pop('Status').split(' ', 1)
                 else:
                     # assume its html
                     content = stdoutdata
                     headers['Content-Type'] = 'text/html'
-        
+
         headers['Content-Length'] = len(content)
         self.out_buffer += RESPONSE_BASIC % (
             response_code,
             response_token,
             get_timestamp(),
             "".join(
-                ["%s: %s\r\n" % (key, headers[key]) for key in headers] + 
+                ["%s: %s\r\n" % (key, headers[key]) for key in headers] +
                 [CRLF, content]
             )
         )
@@ -312,7 +311,7 @@ class HTTPConnection(asyncore.dispatcher):
                 content)
             self.timeout = 0
     # ============================================================
-    # 
+    #
     # ============================================================
     def flush(self):
         pass

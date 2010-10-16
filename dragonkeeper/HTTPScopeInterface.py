@@ -48,6 +48,7 @@ from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT
 from common import NOT_FOUND, BAD_REQUEST, get_timestamp, Singleton
 # from common import pretty_dragonfly_snapshot
 from utils import MessageMap, pretty_print_XML, pretty_print
+from stpwebsocket import STPWebSocket
 
 # the two queues
 connections_waiting = []
@@ -127,14 +128,14 @@ class Scope(Singleton):
             self._http_connection.return_service_list(self._service_list)
             self._http_connection = None
         else:
-            MessageMap(self._service_list, self._connection, 
+            MessageMap(self._service_list, self._connection,
                 self._connect_callback, self._http_connection.context)
 
 scope = Scope()
 
 class HTTPScopeInterface(httpconnection.HTTPConnection):
     """To expose a HTTP interface of the scope interface.
-    
+
     Documentation of the scope interface itself see:
 
         http://dragonfly.opera.com/app/scope-interface/
@@ -151,19 +152,22 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
             /get-message
                 to get a pending message or to wait for the next one
                 header informations are added as custom header fields like:
-                    X-Scope-Message-Service for the service name 
+                    X-Scope-Message-Service for the service name
         STP/1
             /services
                 to get a list of available services
             /get-message
                 to get a pending message or to wait for the next one
                 header informations are added as custom header fields like:
-                    X-Scope-Message-Service for the service name 
+                    X-Scope-Message-Service for the service name
                     X-Scope-Message-Command for the command id
                     X-Scope-Message-Status for the status code
                     X-Scope-Message-Tag for the tag
-                the response body is the message in JSON format 
+                the response body is the message in JSON format
                 (except timeout responses which are still sent as xml)
+
+            /stp-1-channel
+                create a web socket channel
 
     POST methods:
         STP/0:
@@ -345,6 +349,13 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
             connections_waiting.append(self)
         # TODO correct?
 
+    def stp_1_channel(self):
+        if 'Upgrade' in self.headers and self.headers['Upgrade'] == 'WebSocket':
+            STPWebSocket(self)
+        else:
+            self.out_buffer += BAD_REQUEST % get_timestamp()
+            self.timeout = 0
+
     # ============================================================
     # POST commands
     # ============================================================
@@ -466,12 +477,12 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         else:
             self.out_buffer += NOT_FOUND % (get_timestamp(), 0, '')
         self.timeout = 0
-    
+
     def flush(self):
         if self.timeout:
             self.timeouthandler()
-            
-        
+
+
 
     # ============================================================
     # Implementations of the asyncore.dispatcher class methods
