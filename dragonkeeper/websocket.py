@@ -61,10 +61,7 @@ class WebSocket(asyncore.dispatcher):
 
     def _get_number(self, in_str):
         n = int(''.join([i for i in in_str if i.isdigit()])) / in_str.count(' ')
-        return ''.join([chr((n >> 8 * (3 - i)) & 0xff) for i in range(4)])
-        # throws DeprecationWarning: struct integer overflow masking is deprecated
-        # for e.g. 2621808669 with Python 2.6.5
-        # return pack("!i", n & 0xffffffff)
+        return pack("!I", n)
 
     # ============================================================
     # Implementations of the asyncore.dispatcher class methods
