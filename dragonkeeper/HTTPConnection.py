@@ -19,7 +19,7 @@ class HTTPConnection(asyncore.dispatcher):
     """
 
     def __init__(self, conn, addr, context):
-        asyncore.dispatcher.__init__(self, sock = conn)
+        asyncore.dispatcher.__init__(self, sock=conn)
         self.addr = addr
         self.context = context
         self.in_buffer = ""

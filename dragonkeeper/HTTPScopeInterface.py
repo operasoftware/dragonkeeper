@@ -351,7 +351,13 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
 
     def stp_1_channel(self):
         if 'Upgrade' in self.headers and self.headers['Upgrade'] == 'WebSocket':
-            STPWebSocket(self)
+            self.del_channel()
+            self.timeout = 0
+            STPWebSocket(self.socket,
+                         self.headers,
+                         self.in_buffer,
+                         self.path,
+                         self.context)
         else:
             self.out_buffer += BAD_REQUEST % get_timestamp()
             self.timeout = 0
