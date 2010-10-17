@@ -76,11 +76,14 @@ class Scope(Singleton):
 
     def empty_call(self, msg):
         pass
-
+        
     def set_connection(self, connection):
         """ to register the scope connection"""
         self._connection = connection
         self.send_command = connection.send_command_STP_0
+        
+    def get_scope_connection(self):
+        return self._connection
 
     def set_service_list(self, list):
         """to register the service list"""
@@ -357,7 +360,8 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
                          self.headers,
                          self.in_buffer,
                          self.path,
-                         self.context)
+                         self.context,
+                         scope.get_scope_connection())
         else:
             self.out_buffer += BAD_REQUEST % get_timestamp()
             self.timeout = 0
