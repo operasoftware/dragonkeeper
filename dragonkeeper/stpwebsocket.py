@@ -5,6 +5,9 @@ class STPWebSocket(websocket.WebSocket):
     def __init__(self, socket, headers, buffer, path, context, stp_connection):
         websocket.WebSocket.__init__(self, socket, headers, buffer, path)
         self.context = context
+        self.debug = context.debug
+        self.debug_format = context.format
+        self.debug_format_payload = context.format_payload
         self._stp_connection = stp_connection
         self._stp_connection.set_msg_handler(self.handle_scope_message)
         
@@ -31,6 +34,11 @@ class STPWebSocket(websocket.WebSocket):
             msg[5], # tag
             msg[8], # payload
         )
+        if self.debug:
+            pretty_print("send to client:", 
+                          msg, 
+                          self.debug_format, 
+                          self.debug_format_payload)
         self.send_message(msg)
 
     # messages sent from the client    
