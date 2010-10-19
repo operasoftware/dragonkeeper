@@ -1,4 +1,5 @@
 import websocket
+from utils import pretty_print
 
 class STPWebSocket(websocket.WebSocket):
 
@@ -27,7 +28,7 @@ class STPWebSocket(websocket.WebSocket):
     
     # messages sent from scope
     def handle_scope_message(self, msg):
-        msg = '["%s",%s,%s,%s,%s]' % (
+        message = '["%s",%s,%s,%s,%s]' % (
             msg[1], # service
             msg[2], # command
             msg[4], # status
@@ -39,7 +40,7 @@ class STPWebSocket(websocket.WebSocket):
                           msg, 
                           self.debug_format, 
                           self.debug_format_payload)
-        self.send_message(msg)
+        self.send_message(message)
 
     # messages sent from the client    
     def handle_message(self, message):
