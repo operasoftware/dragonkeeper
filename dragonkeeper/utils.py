@@ -28,6 +28,7 @@ MSG_VALUE_COMMAND = 1
 MSG_VALUE_FORMAT_JSON = 1
 MSG_TYPE_ERROR = 4
 INDENT = "  "
+MAX_STR_LENGTH = 50
 
 class TagManager(Singleton):
 
@@ -412,8 +413,11 @@ def pretty_print_payload_item(indent, name, definition, item):
             value = "%s (%s)" % (definition['enum']['numbers'][item], item)
         elif item == None:
             value = "null"
-        elif isinstance(item, str):
-            value = "\"%s\"" % item
+        elif isinstance(item, unicode):
+            if len(item) > MAX_STR_LENGTH:
+                value = "\"%s...\"" % item[0:MAX_STR_LENGTH]
+            else:
+                value = "\"%s\"" % item
         try:
             print "%s%s: %s" % ( indent * INDENT, name, value)
         except:
