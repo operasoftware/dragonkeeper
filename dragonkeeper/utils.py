@@ -223,12 +223,13 @@ class MessageMap(object):
     def handle_messages(self, msg, service):
         if not msg[MSG_KEY_STATUS] and service in self._service_infos:
             message_list = parse_json(msg[MSG_KEY_PAYLOAD])
+            self._service_infos[service]['raw_messages'] = message_list
+            # the message list can be empty (e.g. for the 'core' service)
             if message_list:
-                self._service_infos[service]['raw_messages'] = message_list
                 self.parse_raw_lists(service)
-                self._service_infos[service]['parsed'] = True
-                if self.check_map_complete('parsed'):
-                    self.finalize()
+            self._service_infos[service]['parsed'] = True
+            if self.check_map_complete('parsed'):
+                self.finalize()
         else:
             print "handling of message failed in handle_messages in MessageMap:"
             print msg
