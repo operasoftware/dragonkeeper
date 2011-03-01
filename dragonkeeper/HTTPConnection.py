@@ -13,6 +13,8 @@ from mimetypes import types_map
 from common import *
 from common import __version__ as VERSION
 
+types_map[".manifest"] = "text/cache-manifest"
+
 class HTTPConnection(asyncore.dispatcher):
     """To provide a simple HTTP response handler.
     Special methods can be implementd by subclassing this class
@@ -42,6 +44,8 @@ class HTTPConnection(asyncore.dispatcher):
             (headers_raw, first_line,
                     self.headers, self.in_buffer) = raw_parsed_headers
             method, path, protocol = first_line.split(BLANK, 2)
+            #if path == "/app/":
+            #    path = "/app/stp-1/client-en.xml"
             self.REQUEST_URI = path
             path = path.lstrip("/")
             if "?" in path:
@@ -56,6 +60,8 @@ class HTTPConnection(asyncore.dispatcher):
             self.arguments = arguments
             self.system_path = system_path
             self.timeout = time() + TIMEOUT
+            #if not self.REQUEST_URI.endswith("services"):
+            #    print self.REQUEST_URI
             if self.cgi_enabled:
                 self.check_is_cgi(system_path)
             # POST
