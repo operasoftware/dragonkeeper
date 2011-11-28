@@ -17,7 +17,7 @@ Install
 
 For installing, you need 'setuptools'.
 
-% python setup.py install
+  % python setup.py install
 
 On Windows, you might want to add the install path to your PATH environment variable.
 
@@ -28,11 +28,11 @@ Usage
 
 If installed:
 
-% dragonkeeper
+  % dragonkeeper
 
 if not installed:
 
-% python /path/to/dragonkeeper
+  % python /path/to/dragonkeeper
 
 Exit: Control-C
 
@@ -45,7 +45,7 @@ Basic workflow when using Dragonkeeper is as follows:
 
 - Open a terminal, go to Dragonfly's directory and run dragonkeeper:
 
-    dragonfly% dragonkeeper
+    % dragonkeeper
 
   This should result in:
 
@@ -59,6 +59,8 @@ Basic workflow when using Dragonkeeper is as follows:
     /path/to/opera -pd <profile-dir>
 
   <profile-dir> can simply be a temporary directory, e.g. /tmp.
+
+  Alternatively, use another installation of Opera (as long as they have different profile directories).
 
 - In that browser's address bar, type opera:debug and then click 'Connect'.
 
