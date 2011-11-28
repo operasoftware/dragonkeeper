@@ -5,25 +5,36 @@ Dragonkeeper - Opera Dragonfly development proxy
 Introduction
 ------------
 
-Dragonkeeper is an utility for working on the Opera Dragonfly client.
+Dragonkeeper is a utility designed to ease development of Opera Dragonfly.
 
-Dragonfly serves as a proxy between the Dragonfly client and another Opera instance. This makes
-it possible to run the Opera Dragonfly client as a normal web page while using another Opera dragonly instance to debug itself. This makes development easy, as on can simple reload the client whenever making
-changes to it.
+Dragonkeeper serves as a proxy between the Dragonfly client and a host (an Opera instance). This makes
+it possible to run Dragonfly as a normal web page which makes development easier, e.g. by making it easy
+to reload whenever changes are made, and also by allowing Dragonfly to be inspected by another Dragonfly
+instance.
 
 Install
-------
+-------
 
-python setup.py build
-python setup.py install
+For installing, you need 'setuptools'.
 
+% python setup.py install
+
+On Windows, you might want to add the install path to your PATH environment variable.
+
+Note: Dragonkeeper doesn't have to be installed, but this is preferred.
 
 Usage
 -----
 
-python dragonkeeper/dragonkeeper/dragonkeeper.py
+If installed:
 
-Exit: Control + C
+% dragonkeeper
+
+if not installed:
+
+% python /path/to/dragonkeeper
+
+Exit: Control-C
 
 Howto
 -----
@@ -32,33 +43,34 @@ Basic workflow when using Dragonkeeper is as follows:
 
 - Get a source distribution of Opera Dragonfly from http://bitbucket.org/scope/dragonfly-stp-1/
 
-- In the terminal/shell, go to Dragonfly's directory and then run dragonkeeper. For e.g. if dragonkeeper is in the same parent directory as Dragonfly, then:
-  python ../dragonkeeper/dragonkeeper/dragonkeeper.py
-  
-  should result in:
-  
-  server on: http://localhost:8002/
-   
-  
-- Open that url in Opera. You will see a list of files.
+- Open a terminal, go to Dragonfly's directory and run dragonkeeper:
 
-- Open another instance of Opera from within your shell using
+    dragonfly% dragonkeeper
 
-  /path/to/Opera.app/opera -pd /tmp
-  
+  This should result in:
+
+    server on: http://localhost:8002/
+
+- Open that URL in Opera. You should see a list of files. Navigate to src/client-en.xml. There
+  should be a message saying "Waiting for host connection on port 0".
+
+- Open another instance of Opera from within your terminal using
+
+    /path/to/opera -pd <profile-dir>
+
+  <profile-dir> can simply be a temporary directory, e.g. /tmp.
+
 - In that browser's address bar, type opera:debug and then click 'Connect'.
 
-- In the previous Opera instance with the list of files, navigate to src/client-en.xml 
-  
-- This will load Opera Dragonfly from the Dragonkeeper and connect to the new Opera instance.
-  
-Now, if you would like to debug Dragonfly, go to the browser which has Dragonfly Client open in the window, and start using the existing Dragonfly tools using Cmd + Alt + I
+- In the first instance, Opera Dragonfly should now load. If not, reload it manually.
 
+The Dragonfly instance running in the normal browser window can now be debugged with "normal" Opera
+Dragonfly instance.
 
 Advanced
 --------
 
-Settings:  an optional file CONFIG does overwrite the defaults.
+Settings: an optional file CONFIG overrides the defaults.
 The options file is a standard .ini file, with a single section called
 "dragonkeeper":
 
@@ -104,7 +116,6 @@ Options:
 
 More comments in the source files.
 
-
 Changelog
 ---------
 
@@ -116,7 +127,7 @@ Contact
 Dragonkeeper is maintained by the Opera Dragonfly team. The authors are
 
 - Christian Krebs <chrisk@opera.com>
-- Rune Halvorsen <runeh@opera.com>
+- Rune Halvorsen
 - Jan Borsodi <jborsodi@opera.com>
 
 The Opera Dragonfly web site is at http://dragonfly.opera.com
@@ -126,3 +137,4 @@ License
 -------
 
 See the ``LICENSE`` file in the top distribution directory.
+
