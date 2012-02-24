@@ -9,6 +9,7 @@ from httpscopeinterface import HTTPScopeInterface
 from stpconnection import ScopeConnection
 from simpleserver import SimpleServer, asyncore
 from common import Options
+from simpleupnpdevice import SimpleUPnPDevice
 
 if sys.platform == "win32":
     import msvcrt
@@ -20,7 +21,7 @@ if sys.platform == "win32":
 CONFIG_FILE = "dragonkeeper.ini"
 
 APP_DEFAULTS = {
-    "host": "localhost",
+    "host": "0.0.0.0",
     "server_port": 8002,
     "proxy_port": 7001,
     "root": '.',
@@ -67,8 +68,10 @@ proxy_port: 7001
 debug: False
 format: False"""
 
-
 def run_proxy(options, count=None):
+    ip = socket.gethostbyname(socket.gethostname())
+    options.ip = ip
+    options.http_get_handlers = {}
     server = SimpleServer(options.host, options.server_port,
                  HTTPScopeInterface, options)
     options.SERVER_ADDR, options.SERVER_PORT = server.socket.getsockname()
@@ -77,8 +80,12 @@ def run_proxy(options, count=None):
                  ScopeConnection, options)
     print "server on: http://%s:%s/" % (
                 options.SERVER_NAME, options.SERVER_PORT)
-    asyncore.loop(timeout = 0.1, count = count)
 
+    upnp_device = SimpleUPnPDevice(ip, options.server_port)
+    upnp_device.notify_alive()
+    options.http_get_handlers["upnp_description"] = upnp_device.get_description
+    options.upnp_device = upnp_device
+    asyncore.loop(timeout = 0.1, count=count)
 
 def _load_config(path):
     """Load an .ini file containing dragonkeeper options. Returns a dict
@@ -247,7 +254,6 @@ def _parse_options():
 
     return appopts
 
-
 def main_func():
     options = _parse_options()
     if options.message_filter:
@@ -257,8 +263,11 @@ def main_func():
     try:
         run_proxy(options)
     except KeyboardInterrupt:
+        options.upnp_device.notify_byby()
+        asyncore.loop(timeout = 0.1, count=6)
         for fd, obj in asyncore.socket_map.items():
             obj.close()
+        sys.exit()
     """
     import cProfile, sys
     p=open("profile", "w")

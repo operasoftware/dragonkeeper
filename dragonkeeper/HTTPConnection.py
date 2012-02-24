@@ -35,6 +35,8 @@ class HTTPConnection(asyncore.dispatcher):
         self.timeout = 0
         self.cgi_enabled = context.cgi_enabled
         self.cgi_script = ""
+        self.GET_handlers = context.http_get_handlers
+
 
     def read_headers(self):
         raw_parsed_headers = parse_headers(self.in_buffer)
@@ -75,6 +77,9 @@ class HTTPConnection(asyncore.dispatcher):
                 if hasattr(self, command) and \
                         hasattr(getattr(self, command), '__call__'):
                     getattr(self, command)()
+                elif command in self.GET_handlers:
+                    self.out_buffer += self.GET_handlers[command](self.headers)
+                    self.timeout = 0
                 else:
                     if self.cgi_script:
                         self.handle_cgi()
