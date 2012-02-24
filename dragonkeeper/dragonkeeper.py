@@ -268,6 +268,7 @@ def main_func():
         for fd, obj in asyncore.socket_map.items():
             obj.close()
         sys.exit()
+
     """
     import cProfile, sys
     p=open("profile", "w")
