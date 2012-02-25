@@ -17,6 +17,14 @@ class Device(object):
         self.type = type_
         self.location = headers.get("LOCATION") or headers.get("Location")
 
+    def __repr__(self):
+        return "".join(["Dragonfly:", "\n",
+                        "  uuid: ", self.uuid, "\n",
+                        "  description: ", self.location, "\n",
+                        "  status: ", self.status, "\n"])
+
+    
+
 class TestControlPoint(SimpleUPnPDevice):
     def __init__(self, ip="", http_port=0, sniff=False):
         SimpleUPnPDevice.__init__(self)
@@ -33,11 +41,12 @@ class TestControlPoint(SimpleUPnPDevice):
                 if status == ALIVE:
                     if type_ == TARGET  and not uuid in self.devices:
                         self.devices[uuid] = Device(uuid, status, type_, headers)
-                        print "Dragonfly:", uuid, status
+                        print self.devices[uuid]
                 elif status == BYEBYE:
                     if uuid in self.devices:
                         device = self.devices.pop(uuid)
-                        print "Dragonfly:", uuid, status
+                        device.status = BYEBYE
+                        print str(device)
 
 if __name__ == "__main__":
     try:
