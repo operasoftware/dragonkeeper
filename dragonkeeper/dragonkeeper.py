@@ -9,7 +9,7 @@ from httpscopeinterface import HTTPScopeInterface
 from stpconnection import ScopeConnection
 from simpleserver import SimpleServer, asyncore
 from common import Options
-from simpleupnpdevice import SimpleUPnPDevice
+from upnpsimpledevice import SimpleUPnPDevice
 
 if sys.platform == "win32":
     import msvcrt
