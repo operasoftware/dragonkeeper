@@ -3,15 +3,13 @@ import asyncore
 import time
 import random
 import common
-import struct
 
 def get_uuid():
-    hex_digit = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9",
-                 "a", "b", "c", "d", "e", "f", "A", "B", "C", "D", "E", "F"]
-    l = len(hex_digit) - 1
+    hex_digit = "0123456789abcdefABCDEF"
+    len_ = len(hex_digit) - 1
     ret = []
     for i in [8, 4, 4, 4, 12]:
-       ret.append("".join([hex_digit[random.randint(0, l)] for x in range(i)]))
+       ret.append("".join([hex_digit[random.randint(0, len_)] for x in range(i)]))
     return "-".join(ret)
 
 NOTIFY_ALIVE = common.CRLF.join(["NOTIFY * HTTP/1.1",
@@ -67,12 +65,10 @@ class SimpleUPnPDevice(asyncore.dispatcher):
 
     def __init__(self, ip="", http_port=0, sniff=False):
         asyncore.dispatcher.__init__(self)
-        # source:
-        # http://stackoverflow.com/questions/603852/multicast-in-python
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.bind(("0.0.0.0", self.MCAST_PORT))
-        mreq = struct.pack("4sl", socket.inet_aton(self.MCAST_GRP), socket.INADDR_ANY)
+        mreq = socket.inet_aton(self.MCAST_GRP) + socket.inet_aton("0.0.0.0")
         self.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         self.ip = ip
         self.http_port = http_port
@@ -124,6 +120,8 @@ class SimpleUPnPDevice(asyncore.dispatcher):
                     t = time.time() * 1000
                     mx = int(headers.get("MX", 3)) * 1000
                     self.queue_msg(random.randint(100, mx), self.search_resp, addr)
+                else:
+                    self.process_msg(method, headers)
 
     def writable(self):
         if len(self.msg_queue):
@@ -137,6 +135,9 @@ class SimpleUPnPDevice(asyncore.dispatcher):
 
     def handle_close(self):
         self.close()
+
+    def process_msg(self, method, headers):
+        pass
 
 if __name__ == "__main__":
     try:
