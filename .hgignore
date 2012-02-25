@@ -5,3 +5,4 @@ syntax: glob
 env
 dist
 build
+dragonkeeper.egg-info
