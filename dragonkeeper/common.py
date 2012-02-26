@@ -11,7 +11,7 @@ import string
 import sys
 import time
 import codecs
-from time import gmtime, strftime, mktime, strptime, time
+from time import gmtime, strftime, mktime, strptime, time, daylight
 from calendar import timegm
 from os import stat, listdir
 from os.path import isfile, isdir
@@ -184,6 +184,14 @@ def URI_to_system_path(path):
 def get_timestamp(path = None):
     return strftime("%a, %d %b %Y %H:%M:%S GMT",
                             gmtime(path and stat(path).st_mtime or None))
+
+def get_ts_short():
+    t = time()
+    tint = int(t)
+    return "%02d:%02d:%02d:%03d" % (((tint / (60 * 60)) + daylight) % 24, 
+                                    (tint / 60) % 60, 
+                                    tint % 60,
+                                    (t - tint) * 1000)
 
 
 def timestamp_to_time(stamp):

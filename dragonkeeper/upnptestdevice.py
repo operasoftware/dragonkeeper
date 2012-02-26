@@ -20,11 +20,13 @@ if __name__ == "__main__":
         options.cgi_enabled = False
         server = SimpleServer(options.host, options.server_port, HTTPConnection, options)
         upnp_device = SimpleUPnPDevice(ip, options.server_port)
+        print "time notify alive: ", common.get_ts_short()
         upnp_device.notify_alive()
         options.http_get_handlers["upnp_description"] = upnp_device.get_description
         options.upnp_device = upnp_device
         asyncore.loop(timeout=0.1)
     except KeyboardInterrupt:
+        print "time notify byby: ", common.get_ts_short()
         options.upnp_device.notify_byby()
         asyncore.loop(timeout=0.1, count=6)
         for fd, obj in asyncore.socket_map.items():

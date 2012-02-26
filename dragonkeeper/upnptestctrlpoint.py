@@ -1,5 +1,6 @@
 import asyncore
 import re
+import common
 from upnpsimpledevice import SimpleUPnPDevice
 from upnpsearch import UPnPSearch
 
@@ -21,7 +22,8 @@ class Device(object):
         return "".join(["Dragonfly:", "\n",
                         "  uuid: ", self.uuid, "\n",
                         "  description: ", self.location, "\n",
-                        "  status: ", self.status, "\n"])
+                        "  status: ", self.status, "\n",
+                        "  time: ", common.get_ts_short(), "\n"])
 
     
 
