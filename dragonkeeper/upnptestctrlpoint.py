@@ -30,12 +30,15 @@ class Device(object):
 class TestControlPoint(SimpleUPnPDevice):
     def __init__(self, ip="", http_port=0, sniff=False):
         SimpleUPnPDevice.__init__(self)
-        self.search = UPnPSearch(self.process_msg)
+        self.search = UPnPSearch(self.process_msg, target=TARGET)
         self.devices = {}
 
     def process_msg(self, method, headers):
         if method == NOTIFY or method == SEARCH_RESPONSE:
-            null, status = headers.get("NTS", ":").split(":", 1)
+            if method == SEARCH_RESPONSE:
+                status = ALIVE
+            else:
+                null, status = headers.get("NTS", ":").split(":", 1)
             match = re_usn.match(headers.get("USN", ""))
             uuid = match and match.group("uuid")
             type_ = match and match.group("type_") or headers.get("ST")
