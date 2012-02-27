@@ -114,6 +114,13 @@ class MessageMap(object):
     @staticmethod
     def has_map():
         return bool(message_map)
+
+    @staticmethod
+    def get_cmd_name(service, cmd_id):
+        name = None
+        if message_map:
+            name = message_map.get(service, {}).get(int(cmd_id), {}).get("name")
+        return name or cmd_id
     
     def __init__(self, services, connection, callback, context, map=message_map):
         self._services = services

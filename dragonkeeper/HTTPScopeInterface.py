@@ -53,6 +53,7 @@ from stpwebsocket import STPWebSocket
 # the two queues
 connections_waiting = []
 scope_messages = []
+command_times = {}
 
 SERVICE_LIST = """<services>%s</services>"""
 SERVICE_ITEM = """<service name="%s"/>"""
@@ -295,6 +296,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         # for backward compatibility
         self.scope_message = self.get_message
         self.send_command = self.post_command
+        self.is_timing = context.is_timing
 
     # ============================================================
     # GET commands ( first part of the path )
@@ -388,6 +390,8 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
             }
             /send-command/" + service + "/" + command_id + "/" + tag
             """
+            if self.is_timing:
+                command_times[args[2]] = (args[0], args[1], time() * 1000)
             scope.send_command({
                     0: 1, # message type
                     1: args[0],
@@ -465,6 +469,13 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         if self.debug:
             pretty_print("send to client:", msg,
                                 self.debug_format, self.debug_format_payload)
+        if self.is_timing:
+            tag = str(msg[5])
+            if tag in command_times:
+                item = command_times.pop(tag)
+                print item[0],
+                print MessageMap.get_cmd_name(item[0], item[1]),
+                print time() * 1000 - item[2]
         self.out_buffer += self.SCOPE_MESSAGE_STP_1 % (
             get_timestamp(),
             msg[1], # service

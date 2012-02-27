@@ -33,7 +33,8 @@ APP_DEFAULTS = {
     "print_message_map_services": '',
     "message_filter": "",
     "verbose_debug": False,
-    "cgi_enabled": False
+    "cgi_enabled": False,
+    "is_timing": False
 }
 
 DEFAULT_TYPES = {
@@ -49,7 +50,8 @@ DEFAULT_TYPES = {
     "print_message_map_services": str,
     "message_filter": str,
     "verbose_debug": bool,
-    "cgi_enabled": bool
+    "cgi_enabled": bool, 
+    "is_timing": bool
 }
 
 USAGE = """%prog [options]
@@ -163,6 +165,12 @@ def _parse_options():
         "--host",
         dest = "host",
         help = "host; default %s" % APP_DEFAULTS["host"],
+    )
+    parser.add_option(
+        "-t", "--timing",
+        dest = "is_timing",
+        action = "store_true",
+        help = "timing between sending commands and receiving rsponses",
     )
     parser.add_option(
         "-i", "--make-ini",
