@@ -51,6 +51,7 @@ DEVICE_DESCRIPTION = """<?xml version="1.0" encoding="UTF-8"?>
         <manufacturer>Opera Software ASA</manufacturer>
         <manufacturerURL>http://www.opera.com/</manufacturerURL>
         <payload>http://%s:%s</payload>
+        <deviceicon>http://%s:%s/favicon.ico</deviceicon>
     <serviceList/>
     </device>
 </root>
@@ -132,7 +133,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         return False
 
     def get_description(self, headers):
-        content = DEVICE_DESCRIPTION % (self.ip, self.http_port)
+        content = DEVICE_DESCRIPTION % (self.ip, self.http_port, self.ip, self.http_port)
         args = (common.get_timestamp(), "", "text/xml", len(content), content)
         return common.RESPONSE_OK_CONTENT % args
 
