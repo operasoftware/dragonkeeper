@@ -79,13 +79,16 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         self.msg_byby = NOTIFY_BYBY % self.uuid
         self.search_resp = SEARCH_RESPONSE % (self.ip, self.http_port, self.uuid)
         self.sniff = sniff
+        self.is_alive = False
 
     def notify_alive(self):
+        self.is_alive = True
         t = time.time() * 1000
         for i in range(1, 4):
             self.queue_msg(t + i * 100, self.msg_alive, self.UPnP_ADDR)
 
     def notify_byby(self, cb=None):
+        self.is_alive = False
         t = time.time() * 1000
         for i in range(1, 4):
             self.queue_msg(t + i * 100, self.msg_byby, self.UPnP_ADDR)
@@ -116,7 +119,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
                 raw, first_line, headers, msg = parsed_headers
                 method, path, protocol = first_line.split(common.BLANK, 2)
                 st = headers.get("ST")
-                if method == "M-SEARCH" and st in self.SEARCH_TARGETS:
+                if self.is_alive and method == "M-SEARCH" and st in self.SEARCH_TARGETS:
                     t = time.time() * 1000
                     mx = int(headers.get("MX", 3)) * 1000
                     self.queue_msg(random.randint(100, mx), self.search_resp, addr)
