@@ -64,7 +64,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
     SEARCH_TARGETS = ["urn:opera-com:device:OperaDragonfly:1"]
                       # "ssdp:all", "upnp:rootdevice",
 
-    def __init__(self, ip="", http_port=0, sniff=False):
+    def __init__(self, ip="", http_port=0, stp_port=0, sniff=False):
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -73,6 +73,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         self.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
         self.ip = ip
         self.http_port = http_port
+        self.stp_port = stp_port
         self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.uuid = get_uuid()
         self.msg_queue = []
@@ -133,7 +134,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         return False
 
     def get_description(self, headers):
-        content = DEVICE_DESCRIPTION % (self.ip, self.http_port, self.ip, self.http_port)
+        content = DEVICE_DESCRIPTION % (self.ip, self.stp_port, self.ip, self.http_port)
         args = (common.get_timestamp(), "", "text/xml", len(content), content)
         return common.RESPONSE_OK_CONTENT % args
 
