@@ -99,6 +99,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.uuid = get_uuid()
         self.msg_queue = []
+        self.expire_queue = []
         self.msg_alive = NOTIFY_ALIVE % (self.ip, self.http_port, self.uuid)
         self.msg_byby = NOTIFY_BYBY % self.uuid
         self.search_resp = SEARCH_RESPONSE % (self.ip, self.http_port, self.uuid)
@@ -110,6 +111,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         t = time.time() * 1000
         for i in range(1, 4):
             self.queue_msg(t + i * 100, self.msg_alive, self.UPnP_ADDR)
+        self.expire_queue.append((t + 1700 * 1000, self.notify_alive))
 
     def notify_byby(self, cb=None):
         self.is_alive = False
@@ -133,6 +135,17 @@ class SimpleUPnPDevice(asyncore.dispatcher):
             else:
                 cur += 1
 
+    def process_expire_queue(self):
+        cur = 0
+        t = time.time() * 1000
+        TIME = 0
+        CB = 1
+        while cur < len(self.expire_queue):
+            if t > self.expire_queue[cur][TIME]:
+                self.expire_queue.pop(cur)[CB]()
+            else:
+                cur += 1
+
     def handle_read(self):
         msg, addr = self.recvfrom(common.BUFFERSIZE)
         if self.sniff:
@@ -153,6 +166,8 @@ class SimpleUPnPDevice(asyncore.dispatcher):
     def writable(self):
         if len(self.msg_queue):
             self.process_msg_queue()
+        if len(self.expire_queue):
+            self.process_expire_queue()
         return False
 
     def get_description(self, headers):
