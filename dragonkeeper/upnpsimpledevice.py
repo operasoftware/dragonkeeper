@@ -56,6 +56,28 @@ DEVICE_DESCRIPTION = """<?xml version="1.0" encoding="UTF-8"?>
     </device>
 </root>
 """
+DEVICE_DESCRIPTION_2 = """<root xmlns="urn:schemas-upnp-org:device-1-0">
+    <specVersion>
+        <major>1</major>
+        <minor>0</minor>
+    </specVersion>
+    <device>
+        <deviceType>urn:opera-com:device:OperaDragonfly:1</deviceType>
+        <friendlyName>Opera Unite - @</friendlyName>
+        <manufacturer>Opera Software ASA</manufacturer>
+        <manufacturerURL>http://www.opera.com/</manufacturerURL>
+        <modelDescription>Opera Unite Version 12.00</modelDescription>
+        <modelName>Opera Unite</modelName>
+        <modelNumber>12.00</modelNumber>
+        <modelURL>http://www.opera.com/</modelURL>
+        <UDN>uuid:c0f8c210-61f7-11e1-b10c-d716332264a9</UDN>
+        <presentationURL>http://10.20.15.54:8841</presentationURL>
+        <payload>http://%s:%s</payload>
+        <deviceicon>http://%s:%s/favicon.ico</deviceicon>
+        <serviceList/>
+    </device>
+</root>
+"""
 
 class SimpleUPnPDevice(asyncore.dispatcher):
     MCAST_GRP = "239.255.255.250"
