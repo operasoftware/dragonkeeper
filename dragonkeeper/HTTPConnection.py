@@ -14,6 +14,7 @@ from common import *
 from common import __version__ as VERSION
 
 types_map[".manifest"] = "text/cache-manifest"
+types_map[".ico"] = "image/x-icon"
 
 class HTTPConnection(asyncore.dispatcher):
     """To provide a simple HTTP response handler.
