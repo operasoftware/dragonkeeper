@@ -83,7 +83,7 @@ def run_proxy(options, count=None):
     print "server on: http://%s:%s/" % (
                 options.SERVER_NAME, options.SERVER_PORT)
 
-    upnp_device = SimpleUPnPDevice(ip, options.server_port, options.proxy_port)
+    upnp_device = SimpleUPnPDevice(options.server_port, options.proxy_port)
     upnp_device.notify_alive()
     options.http_get_handlers["upnp_description"] = upnp_device.get_description
     options.upnp_device = upnp_device

@@ -39,6 +39,13 @@ SEARCH_RESPONSE = common.CRLF.join(["HTTP/1.1 200 OK",
                                     "USN: uuid:%s::urn:opera-com:device:OperaDragonfly:1",
                                     common.CRLF])
 
+M_SEARCH = common.CRLF.join(["M-SEARCH * HTTP/1.1",
+                             "HOST: 239.255.255.250:1900",
+                             "MAN: \"ssdp:discover\"",
+                             "MX: 3",
+                             "ST: uuid:%s",
+                             common.CRLF])
+
 DEVICE_DESCRIPTION = """<?xml version="1.0" encoding="UTF-8"?>
 <root xmlns="urn:schemas-upnp-org:device-1-0">
     <specVersion>
@@ -86,32 +93,44 @@ class SimpleUPnPDevice(asyncore.dispatcher):
     SEARCH_TARGETS = ["urn:opera-com:device:OperaDragonfly:1"]
                       # "ssdp:all", "upnp:rootdevice",
 
-    def __init__(self, ip="", http_port=0, stp_port=0, sniff=False):
+    def __init__(self, http_port=0, stp_port=0, sniff=False):
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.bind(("0.0.0.0", self.MCAST_PORT))
         mreq = socket.inet_aton(self.MCAST_GRP) + socket.inet_aton("0.0.0.0")
         self.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        self.ip = ip
         self.http_port = http_port
         self.stp_port = stp_port
         self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.uuid = get_uuid()
         self.msg_queue = []
         self.expire_queue = []
-        self.msg_alive = NOTIFY_ALIVE % (self.ip, self.http_port, self.uuid)
+        self.ip = None
+        self.do_notify = False
         self.msg_byby = NOTIFY_BYBY % self.uuid
-        self.search_resp = SEARCH_RESPONSE % (self.ip, self.http_port, self.uuid)
         self.sniff = sniff
         self.is_alive = False
 
+    def set_ip(self, ip):
+        self.ip = ip
+        self.msg_alive = NOTIFY_ALIVE % (self.ip, self.http_port, self.uuid)
+        self.search_resp = SEARCH_RESPONSE % (self.ip, self.http_port, self.uuid)
+        if self.do_notify:
+            self.notify_alive()
+
     def notify_alive(self):
-        self.is_alive = True
-        t = time.time() * 1000
-        for i in range(1, 4):
-            self.queue_msg(t + i * 100, self.msg_alive, self.UPnP_ADDR)
-        self.expire_queue.append((t + 1700 * 1000, self.notify_alive))
+        if self.ip:
+            self.is_alive = True
+            t = time.time() * 1000
+            for i in range(1, 4):
+                self.queue_msg(t + i * 100, self.msg_alive, self.UPnP_ADDR)
+            self.expire_queue.append((t + 1700 * 1000, self.notify_alive))
+        else:
+            self.do_notify = True
+            t = time.time() * 1000
+            for i in range(1, 4):
+                self.queue_msg(t + i * 100, M_SEARCH % self.uuid, self.UPnP_ADDR)
 
     def notify_byby(self, cb=None):
         self.is_alive = False
@@ -160,6 +179,8 @@ class SimpleUPnPDevice(asyncore.dispatcher):
                     t = time.time() * 1000
                     mx = int(headers.get("MX", 3)) * 1000
                     self.queue_msg(random.randint(100, mx), self.search_resp, addr)
+                elif not self.ip and self.uuid in st:
+                    self.set_ip(addr[0])
                 else:
                     self.process_msg(method, headers)
 

@@ -19,7 +19,7 @@ if __name__ == "__main__":
         options.server_port = 8000
         options.cgi_enabled = False
         server = SimpleServer(options.host, options.server_port, HTTPConnection, options)
-        upnp_device = SimpleUPnPDevice(ip, options.server_port)
+        upnp_device = SimpleUPnPDevice(options.server_port)
         print "time notify alive: ", common.get_ts_short()
         upnp_device.notify_alive()
         options.http_get_handlers["upnp_description"] = upnp_device.get_description
