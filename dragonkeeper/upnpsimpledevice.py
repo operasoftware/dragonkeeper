@@ -51,7 +51,7 @@ DEVICE_DESCRIPTION = """<?xml version="1.0" encoding="UTF-8"?>
         <manufacturer>Opera Software ASA</manufacturer>
         <manufacturerURL>http://www.opera.com/</manufacturerURL>
         <payload>http://%s:%s</payload>
-        <deviceicon>http://%s:%s/favicon.ico</deviceicon>
+        <deviceicon>http://%s:%s/device-favicon.png</deviceicon>
     <serviceList/>
     </device>
 </root>
