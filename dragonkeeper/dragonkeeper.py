@@ -71,7 +71,15 @@ debug: False
 format: False"""
 
 def run_proxy(options, count=None):
-    ip = socket.gethostbyname(socket.gethostname())
+    hostname, aliaslist, ipaddrlist = socket.gethostbyname_ex(socket.gethostname())
+    ips = []
+    for ip in ipaddrlist:
+        for bl in ["192.162", "127."]:
+            if ip.startswith(bl):
+                continue
+            ips.append(ip)
+    if ips:
+        ip = ips[0]
     options.ip = ip
     options.http_get_handlers = {}
     server = SimpleServer(options.host, options.server_port,
@@ -83,7 +91,7 @@ def run_proxy(options, count=None):
     print "server on: http://%s:%s/" % (
                 options.SERVER_NAME, options.SERVER_PORT)
 
-    upnp_device = SimpleUPnPDevice(options.server_port, options.proxy_port)
+    upnp_device = SimpleUPnPDevice(ip, options.server_port, options.proxy_port)
     upnp_device.notify_alive()
     options.http_get_handlers["upnp_description"] = upnp_device.get_description
     options.upnp_device = upnp_device
