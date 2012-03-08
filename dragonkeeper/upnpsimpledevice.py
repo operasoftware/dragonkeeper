@@ -179,7 +179,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
                     t = time.time() * 1000
                     mx = int(headers.get("MX", 3)) * 1000
                     self.queue_msg(random.randint(100, mx), self.search_resp, addr)
-                elif not self.ip and self.uuid in st:
+                elif not self.ip and st and self.uuid in st:
                     self.set_ip(addr[0])
                 else:
                     self.process_msg(method, headers)
