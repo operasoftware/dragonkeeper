@@ -86,8 +86,9 @@ class HTTPConnection(asyncore.dispatcher):
                         self.handle_cgi()
                     elif os.path.exists(system_path) or not path:
                         self.serve(path, system_path)
-                    elif path == "favicon.ico":
-                        self.serve(path, path_join(SOURCE_ROOT, "favicon.ico"))
+                    # favicon.ico and device-favicon.png
+                    elif path_exists(path_join(SOURCE_ROOT, system_path)):
+                        self.serve(path, path_join(SOURCE_ROOT, system_path))
                     else:
                         content = "The server cannot handle: %s" % path
                         self.out_buffer += NOT_FOUND % (

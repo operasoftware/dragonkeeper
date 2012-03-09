@@ -97,6 +97,8 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         self.http_port = http_port
         self.stp_port = stp_port
         self.send_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.send_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.send_socket.bind((self.ip, 0))
         self.uuid = get_uuid()
         self.msg_queue = []
         self.expire_queue = []

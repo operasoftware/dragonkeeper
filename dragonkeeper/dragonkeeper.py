@@ -71,15 +71,21 @@ debug: False
 format: False"""
 
 def run_proxy(options, count=None):
-    hostname, aliaslist, ipaddrlist = socket.gethostbyname_ex(socket.gethostname())
-    ips = []
-    for ip in ipaddrlist:
-        for bl in ["192.162", "127."]:
-            if ip.startswith(bl):
-                continue
-            ips.append(ip)
-    if ips:
+    ip = ""
+    hostname, aliaslist, ips = socket.gethostbyname_ex(socket.gethostname())
+    while ips and ips[0].startswith("127."):
+        ips.pop(0)
+    if len(ips) == 1:
         ip = ips[0]
+    else:
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            s.connect(("opera.com", 80))
+            ip = s.getsockname()[0]
+            s.close()
+        except:
+            print "failed to get the IP"
+            return
     options.ip = ip
     options.http_get_handlers = {}
     server = SimpleServer(options.host, options.server_port,
