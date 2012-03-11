@@ -13,7 +13,7 @@ if sys.platform == "win32":
     msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
 
 def _get_IP():
-    ip = ""
+    ip = None
     hostname, aliaslist, ips = socket.gethostbyname_ex(socket.gethostname())
     while ips and ips[0].startswith("127."):
         ips.pop(0)
@@ -26,7 +26,7 @@ def _get_IP():
             ip = s.getsockname()[0]
             s.close()
         except:
-            return None
+            pass
     return ip
 
 def _parse_args():
