@@ -1,6 +1,3 @@
-# Copyright (c) 2008, Opera Software ASA
-# license see LICENSE.
-
 __version__ = '0.8.3'
 
 import socket
@@ -205,36 +202,6 @@ def timestamp_to_time(stamp):
       Sun Nov  6 08:49:37 1994       ; ANSI C's asctime() format"""
     return timegm(strptime(stamp, "%a, %d %b %Y %H:%M:%S %Z"))
 
-
-class Options(object):
-    #todo: subclass dict or userdict?
-    def __init__(self, *args, **kwargs):
-        for arg in args:
-            for key, val in arg.iteritems():
-                self.__dict__[key]=val
-
-    def __getitem__(self, name):
-        return self.__dict__[name]
-
-    def __getattr__(self, name):
-        return self.__dict__[name]
-
-    def __setitem__(self, name, value):
-        self.__dict__[name]=value
-
-    def __setattr__(self, name, value):
-        self.__dict__[name]=value
-
-    def __delattr__(self, name):
-        del self.__dict__[name]
-
-    def __deltitem__(self, name):
-        del self.__dict__[name]
-
-    def __str__(self):
-        return str(self.__dict__)
-
-
 # Singleton class taken from
 # http://book.opensourceproject.org.cn/lamp/python/pythoncook2/opensource/0596007973/pythoncook2-chp-6-sect-15.html
 
@@ -245,98 +212,3 @@ class Singleton(object):
         if '_inst' not in vars(cls):
             cls._inst = object.__new__(cls, *args, **kwargs)
         return cls._inst
-"""
-this is too hacky to be useful
-def pretty_dragonfly_snapshot(in_string):
-    # To pretty print dragonfly markup snapshots
-    # hackybacky
-    if in_string.startswith("<"):
-        in_string = in_string.replace("'=\"\"", "")
-        ret = []
-        indent_count = 0
-        INDENT = "  "
-        LF = "\r\n"
-        PROCESSING_INSTRUCTION = 0
-        TEXT = 1
-        TAG = 2
-        CLOSING_TAG = 3
-        OPENING_CLOSING_TAG = 4
-        OPENING_TAG = 5
-        matches_iter = re.finditer(r"(<\?[^>]*>)?([^<]*)(?:(<[^/][^>]*>)|(<\/[^>/]*>))", in_string)
-        sp_sensitive = 0
-        def check_sp_sensitivity(tag):
-            for check in [
-                        "spotlight-node", 
-                        "class=\"pre-wrap\"",
-                        "<property",
-                        "<tab",
-                        "<toolbar-filters",
-                        "<toolbar-buttons",
-                        "<toolbar-switches",
-                        "<cst-select"
-
-
-                    ]:
-                if check in tag:
-                    return True
-            return False
-
-        def skip(tag):
-            for check in [
-                        "<script", 
-                    ]:
-                if check in tag:
-                    return True
-            return False
-
-        try:
-            while True:
-                m = matches_iter.next()
-                matches = m.groups()
-                if sp_sensitive:
-                    if matches[CLOSING_TAG]:
-                        sp_sensitive -= 1
-                        last_match = CLOSING_TAG
-                    elif "/>" in matches[TAG] or "<![CDATA[" in matches[TAG]:
-                        last_match = OPENING_CLOSING_TAG
-                    else:
-                        sp_sensitive += 1
-                        last_match = OPENING_TAG
-                    ret.append(m.group())
-                else:
-                    if matches[CLOSING_TAG]:
-                        
-                        if last_match == OPENING_TAG:
-                            ret.append(m.group().rstrip("\r\n \t"))
-                            indent_count -= 1
-                        else:
-                            if matches[TEXT].strip("\r\n \t"):
-                                ret.extend([LF, indent_count * INDENT, matches[TEXT].strip("\r\n \t")])
-                            indent_count -= 1
-                            ret.extend([LF, indent_count * INDENT, matches[CLOSING_TAG].strip("\r\n \t")])
-                        last_match = CLOSING_TAG
-                    elif "/>" in matches[TAG] or \
-                        "<!--" in matches[TAG] or \
-                        "<![CDATA[" in matches[TAG]:
-                        last_match = OPENING_CLOSING_TAG
-                        if not skip(matches[TAG]):
-                            ret.extend([LF, indent_count * INDENT, m.group().strip("\r\n \t")])
-                    else:
-                        last_match = OPENING_TAG
-                        if matches[PROCESSING_INSTRUCTION]:
-                            ret.extend([indent_count * INDENT, matches[PROCESSING_INSTRUCTION].strip("\r\n \t")])
-                        if matches[TEXT].strip("\r\n \t"):
-                            ret.extend([LF, indent_count * INDENT, matches[TEXT].strip("\r\n \t")])
-                        ret.extend([LF, indent_count * INDENT, matches[TAG].strip("\r\n \t")])
-                        if check_sp_sensitivity(matches[TAG]):
-                            sp_sensitive += 1
-                        else:
-                            indent_count += 1
-        except StopIteration:
-            pass
-        except:
-            raise
-    else:
-        ret = [in_string]
-    return "".join(ret)
-"""

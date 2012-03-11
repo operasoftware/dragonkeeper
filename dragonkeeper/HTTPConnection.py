@@ -1,6 +1,3 @@
-# Copyright (c) 2008, Opera Software ASA
-# license see LICENSE.
-
 import asyncore
 import sys
 import shlex
