@@ -61,6 +61,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
         self.verbose_debug = context.verbose_debug
+        self.debug_only_errors = context.only_errors
         self.force_stp_0 = context.force_stp_0
         # STP 0 meassages
         self.in_buffer = u""
@@ -100,7 +101,7 @@ class ScopeConnection(asyncore.dispatcher):
     # See also http://dragonfly.opera.com/app/scope-interface for more details.
     def send_command_STP_0(self, msg):
         """ to send a message to scope"""
-        if self.debug:
+        if self.debug and not self.debug_only_errors:
             service, payload = msg.split(BLANK, 1)
             pretty_print_XML("\nsend to scope: %s" % service, payload, self.debug_format)
         self.out_buffer += ("%s %s" % (len(msg), msg)).encode("UTF-16BE")
@@ -238,7 +239,7 @@ class ScopeConnection(asyncore.dispatcher):
             required binary payload = 8;
         }
         """
-        if self.debug:
+        if self.debug and not self.debug_only_errors:
             pretty_print("send to host:", msg,
                             self.debug_format, self.debug_format_payload)
         stp_1_msg = "".join([
@@ -308,7 +309,7 @@ class ScopeConnection(asyncore.dispatcher):
                 8: '["json"]'})
 
     def handle_connect_client(self, msg):
-        if self.debug:
+        if self.debug and not self.debug_only_errors:
             pretty_print("client connected:", msg,
                             self.debug_format, self.debug_format_payload)
         if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:

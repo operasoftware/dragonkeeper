@@ -55,6 +55,7 @@ command_times = {}
 SERVICE_LIST = """<services>%s</services>"""
 SERVICE_ITEM = """<service name="%s"/>"""
 XML_PRELUDE = """<?xml version="1.0"?>%s"""
+MSG_TYPE_ERROR = 4
 
 class Scope(Singleton):
     """Access layer for HTTPScopeInterface instances to the scope connection"""
@@ -289,6 +290,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         self.debug = context.debug
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
+        self.debug_only_errors = context.only_errors
         self.context = context
         # for backward compatibility
         self.scope_message = self.get_message
@@ -463,7 +465,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         if not msg[8]:
             # workaround, status 204 does not work
             msg[8] = ' '
-        if self.debug:
+        if self.debug and (not self.debug_only_errors or msg[4] == MSG_TYPE_ERROR):
             pretty_print("send to client:", msg,
                                 self.debug_format, self.debug_format_payload)
         if self.is_timing:

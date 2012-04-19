@@ -38,6 +38,10 @@ def _parse_args():
                         action="store_true",
                         default=False,
                         help="print message flow")
+    parser.add_argument("--only-errors",
+                        action="store_true",
+                        default=False,
+                        help="print only error messages")
     parser.add_argument("-f", "--format",
                         action="store_true",
                         default=False,
