@@ -25,15 +25,15 @@ class WebSocket13(asyncore.dispatcher):
     
     def __init__(self, socket, headers, buffer, path):
         asyncore.dispatcher.__init__(self, sock=socket)
-        self._inbuffer = array('B', buffer)
-        self._outbuffer = ''
+        self._inbuffer = array("B", buffer)
+        self._outbuffer = ""
         self._headers = headers
         self._path = path
         self._shake_hands()
 
     def _shake_hands(self):
         sha1 = hashlib.sha1()
-        sha1.update(self._headers['Sec-WebSocket-Key'])
+        sha1.update(self._headers.get("Sec-WebSocket-Key"))
         sha1.update(WS13_GUID)
         res_key = base64.b64encode(sha1.digest())
         self._outbuffer += RESPONSE_UPGRADE_WEB_SOCKET % res_key
@@ -99,8 +99,8 @@ class WebSocket13(asyncore.dispatcher):
             buf = self._inbuffer
             cur = self._buf_cur
             mask = self._mask
-            r = range(self._data_length)
-            data = array('B', [buf[cur + i] ^ mask[i % 4] for i in r])
+            r = xrange(self._data_length)
+            data = array("B", (buf[cur + i] ^ mask[i % 4] for i in r))
             self.handle_message(data.tostring())
             self._inbuffer = buf[cur + self._data_length:]
             self._buf_cur = 0
@@ -112,9 +112,9 @@ class WebSocket13(asyncore.dispatcher):
         self._handle_read()
 
     def _pack(self, *values):
-        self._outbuffer += array('B', [value >> (byte_count - 1 - i) * 8 & 0xff
+        self._outbuffer += array("B", (value >> (byte_count - 1 - i) * 8 & 0xff
                                        for value, byte_count in values
-                                       for i in range(byte_count)]).tostring()
+                                       for i in range(byte_count))).tostring()
 
     def send_message(self, message):
         # only support for text so far
