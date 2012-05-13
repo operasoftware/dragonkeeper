@@ -1,10 +1,10 @@
-import websocket
+import websocket13
 from utils import pretty_print
 
-class STPWebSocket(websocket.WebSocket):
+class STPWebSocket(websocket13.WebSocket13):
 
     def __init__(self, socket, headers, buffer, path, context, stp_connection):
-        websocket.WebSocket.__init__(self, socket, headers, buffer, path)
+        websocket13.WebSocket13.__init__(self, socket, headers, buffer, path)
         self.context = context
         self.debug = context.debug
         self.debug_format = context.format
