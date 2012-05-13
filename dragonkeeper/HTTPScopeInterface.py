@@ -46,6 +46,7 @@ from common import NOT_FOUND, BAD_REQUEST, get_timestamp, Singleton
 # from common import pretty_dragonfly_snapshot
 from utils import MessageMap, pretty_print_XML, pretty_print
 from stpwebsocket import STPWebSocket
+from websocket13 import TestWebSocket13
 
 # the two queues
 connections_waiting = []
@@ -363,6 +364,18 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
                          self.path,
                          self.context,
                          scope.get_scope_connection())
+        else:
+            self.out_buffer += BAD_REQUEST % get_timestamp()
+            self.timeout = 0
+
+    def test_web_sock_13(self):
+        if self.headers.get("Upgrade") == "websocket":
+            self.del_channel()
+            self.timeout = 0
+            TestWebSocket13(self.socket,
+                            self.headers,
+                            self.in_buffer,
+                            self.path)
         else:
             self.out_buffer += BAD_REQUEST % get_timestamp()
             self.timeout = 0

@@ -1,0 +1,22 @@
+<!doctype html>
+<title>test web sockets</title>
+<script>
+window.onload = function()
+{
+  var sock = new WebSocket("ws://" + location.host + "/test-web-sock-13"); 
+  var log = document.querySelector("pre");
+  document.querySelector("form").addEventListener("submit", function(event)
+  {
+    sock.send(event.target.message.value);
+    event.preventDefault();
+  }, false);
+  sock.onopen = function(event) { log.textContent += "web socket open \n"; };
+  sock.onerror = function(event) { log.textContent += "web socket error \n"; };
+  sock.onmessage = function(event) { log.textContent += "message: " + event.data + " \n"; };
+}
+</script>
+<form>
+    <textarea name=message>hello</textarea>
+    <input type=submit value="Send message">
+</form>
+<pre></pre>
