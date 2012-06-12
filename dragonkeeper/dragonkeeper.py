@@ -109,13 +109,16 @@ def _parse_args():
                         default=False,
                         dest="cgi_enabled",
                         help="enable cgi support")
+    parser.add_argument("--servername",
+                        default="localhost",
+                        dest="SERVER_NAME",
+                        help="server name (default: %(default)s))")
     parser.set_defaults(ip=_get_IP(), http_get_handlers={})
     return parser.parse_args()
 
 def _run_proxy(args, count=None):
     server = SimpleServer(args.host, args.server_port, HTTPScopeInterface, args)
     args.SERVER_ADDR, args.SERVER_PORT = server.socket.getsockname()
-    args.SERVER_NAME = socket.gethostbyaddr(args.SERVER_ADDR)[0]
     SimpleServer(args.host, args.stp_port, ScopeConnection, args)
     print "server on: http://%s:%s/" % (args.SERVER_NAME, args.SERVER_PORT)
     upnp_device = SimpleUPnPDevice(args.ip, args.server_port, args.stp_port)
