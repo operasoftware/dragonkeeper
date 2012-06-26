@@ -411,7 +411,7 @@ class MessageMap(object):
 # pretty print STP/1 messages
 # ===========================
 
-def pretty_print_payload_item(indent, name, definition, item):
+def pretty_print_payload_item(indent, name, definition, item, verbose_debug=False):
     if item and "message" in definition:
         print "%s%s:" % (indent * INDENT, name)
         pretty_print_payload(item, definition["message"], indent=indent+1)
@@ -422,7 +422,7 @@ def pretty_print_payload_item(indent, name, definition, item):
         elif item == None:
             value = "null"
         elif isinstance(item, unicode):
-            if len(item) > MAX_STR_LENGTH:
+            if not verbose_debug and len(item) > MAX_STR_LENGTH:
                 value = "\"%s...\"" % item[0:MAX_STR_LENGTH]
             else:
                 value = "\"%s\"" % item
@@ -431,7 +431,7 @@ def pretty_print_payload_item(indent, name, definition, item):
         except:
             print "%s%s: %s%s" % ( indent * INDENT, name, value[0:100], '...')
 
-def pretty_print_payload(payload, definitions, indent=2):
+def pretty_print_payload(payload, definitions, indent=2, verbose_debug=False):
     for item, definition in zip(payload, definitions):
         if definition["q"] == "repeated":
             print "%s%s:" % (indent * INDENT, definition['name'])
@@ -440,15 +440,17 @@ def pretty_print_payload(payload, definitions, indent=2):
                         indent + 1,
                         definition['name'].replace("List", ""),
                         definition,
-                        sub_item)
+                        sub_item,
+                        verbose_debug=verbose_debug)
         else:
             pretty_print_payload_item(
                     indent,
                     definition['name'],
                     definition,
-                    item)
+                    item,
+                    verbose_debug=verbose_debug)
 
-def pretty_print(prelude, msg, format, format_payload):
+def pretty_print(prelude, msg, format, format_payload, verbose_debug=False):
     service = msg[MSG_KEY_SERVICE]
     command_def = message_map.get(service, {}).get(msg[MSG_KEY_COMMAND_ID], None)
     command_name = command_def and command_def.get("name", None) or \
@@ -475,7 +477,7 @@ def pretty_print(prelude, msg, format, format_payload):
                 if payload and command_def:
                     definition = command_def.get(msg[MSG_KEY_TYPE], None)
                     try:
-                        pretty_print_payload(payload, definition)
+                        pretty_print_payload(payload, definition, verbose_debug=verbose_debug)
                     except Exception, msg:
                         # print msg 
                         print "failed to pretty print the paylod. wrong message structure?"

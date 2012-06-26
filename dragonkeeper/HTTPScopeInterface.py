@@ -291,6 +291,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         self.debug = context.debug
         self.debug_format = context.format
         self.debug_format_payload = context.format_payload
+        self.verbose_debug = context.verbose_debug
         self.debug_only_errors = context.only_errors
         self.context = context
         # for backward compatibility
@@ -480,7 +481,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
             msg[8] = ' '
         if self.debug and (not self.debug_only_errors or msg[4] == MSG_TYPE_ERROR):
             pretty_print("send to client:", msg,
-                                self.debug_format, self.debug_format_payload)
+                                self.debug_format, self.debug_format_payload, self.verbose_debug)
         if self.is_timing:
             tag = str(msg[5])
             if tag in command_times:
