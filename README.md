@@ -52,11 +52,11 @@ Basic workflow when using Dragonkeeper is as follows:
 
         /path/to/opera -pd <profile-dir>
 
-  <profile-dir> can simply be a temporary directory, e.g. /tmp.
+  `<profile-dir>` can simply be a temporary directory, e.g. `/tmp`.
 
   Alternatively, use another installation of Opera (as long as they have different profile directories).
 
-- In that browser's address bar, type opera:debug and then click 'Connect'.
+- In that browser's address bar, go to [opera:debug](opera:debug), select port 7001 and click 'Connect'.
 
 - In the first instance, Opera Dragonfly should now load. If not, reload it manually.
 
