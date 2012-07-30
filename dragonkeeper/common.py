@@ -30,9 +30,9 @@ def parse_headers(buffer):
         first_line, headers = headers_raw.split(CRLF, 1)
         headers = dict((RE_HEADER.split(line, 1) for line in RE_HEADER_LINES.split(headers)))
         return (
-            headers_raw + 2 * CRLF, 
-            first_line, 
-            headers, 
+            headers_raw + 2 * CRLF,
+            first_line,
+            headers,
             buffer
         )
     return None
@@ -185,8 +185,8 @@ def get_timestamp(path = None):
 def get_ts_short():
     t = time()
     tint = int(t)
-    return "%02d:%02d:%02d:%03d" % (((tint / (60 * 60)) + daylight) % 24, 
-                                    (tint / 60) % 60, 
+    return "%02d:%02d:%02d:%03d" % (((tint / (60 * 60)) + daylight) % 24,
+                                    (tint / 60) % 60,
                                     tint % 60,
                                     (t - tint) * 1000)
 

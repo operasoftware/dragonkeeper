@@ -183,7 +183,7 @@ if __name__ == "__main__":
     import cProfile
     import pstats
     asyncore.poll = partial(poll_wrapper, asyncore.poll, ProfileContext())
-    cProfile.run("main_func(timeout=10)", "dragonkeeper.profile")
+    cProfile.run("main_func(timeout=0.01)", "dragonkeeper.profile")
     p = pstats.Stats("dragonkeeper.profile")
     print "cumulative:\n"
     p.sort_stats("cumulative").print_stats(30)

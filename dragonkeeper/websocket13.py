@@ -22,7 +22,7 @@ RESPONSE_UPGRADE_WEB_SOCKET = CRLF.join(["HTTP/1.1 101 Switching Protocols",
 class WebSocket13(asyncore.dispatcher):
 
     # Sec-WebSocket-Version: 13
-    
+
     def __init__(self, socket, headers, buffer, path):
         asyncore.dispatcher.__init__(self, sock=socket)
         self._inbuffer = array("B", buffer)
@@ -37,7 +37,7 @@ class WebSocket13(asyncore.dispatcher):
         sha1.update(WS13_GUID)
         res_key = base64.b64encode(sha1.digest())
         self._outbuffer += RESPONSE_UPGRADE_WEB_SOCKET % res_key
-        self._fin = NOT_SET 
+        self._fin = NOT_SET
         self._rsv1 = NOT_SET
         self._rsv2 = NOT_SET
         self._rsv3 = NOT_SET
@@ -58,12 +58,12 @@ class WebSocket13(asyncore.dispatcher):
             self._rsv2 = byte >> 5 & 1
             self._rsv3 = byte >> 4 & 1
             # opcode
-            # 
+            #
             # 0   continuation frame
             # 1   text frame
             # 2   binary frame
             # 3-7 are reserved for further non-control frames
-            # 8   connection close 
+            # 8   connection close
             self._opcode = byte & 0x0f
             byte = self._inbuffer[self._buf_cur]
             self._buf_cur += 1
@@ -89,7 +89,7 @@ class WebSocket13(asyncore.dispatcher):
             self._set_read_handler(self._read_mask)
 
     def _read_mask(self):
-        if len(self._inbuffer) >= self._buf_cur + 4: 
+        if len(self._inbuffer) >= self._buf_cur + 4:
             self._mask = self._inbuffer[self._buf_cur:self._buf_cur + 4]
             self._buf_cur += 4
             self._set_read_handler(self._read_payload)
@@ -155,6 +155,6 @@ class TestWebSocket13(WebSocket13):
 
     def __init__(self, socket, headers, buffer, path):
         WebSocket13.__init__(self, socket, headers, buffer, path)
-   
+
     def handle_message(self, message):
         self.send_message("message received: %s" % message)
