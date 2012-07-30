@@ -2,6 +2,9 @@ import sys
 import os
 import socket
 import argparse
+import asyncore
+import time
+from functools import partial
 from httpscopeinterface import HTTPScopeInterface
 from stpconnection import ScopeConnection
 from simpleserver import SimpleServer, asyncore
@@ -148,10 +151,38 @@ def main_func(timeout=0.1):
             obj.close()
         sys.exit()
 
+class ProfileContext(object):
+    def __init__(self):
+        self.time = time.time()
+        self.call_count = 0
+        self.calls_per_sec = 0
+        self.socket_count = 0
+
+
+def poll_wrapper(asyncore_poll, ctx, timeout=0.0, map=None):
+    ctx.call_count += 1
+    s_count = len(map)
+    if not s_count == ctx.socket_count:
+        print "sockets:", s_count, ", polls per second:", int(ctx.calls_per_sec)
+        ctx.socket_count = s_count
+    t = time.time()
+    if t - ctx.time > 1:
+        #print "polls per second:", int(ctx.call_count)
+        calls_per_sec = ctx.call_count * (1 / (t - ctx.time))
+        ctx.call_count = 0
+        ctx.time = t
+        if calls_per_sec < ctx.calls_per_sec * .95 or calls_per_sec > ctx.calls_per_sec * 1.05:
+            #print calls_per_sec, ctx.calls_per_sec * .95, ctx.calls_per_sec * 1.05
+            ctx.calls_per_sec = calls_per_sec
+            print int(calls_per_sec)
+
+    asyncore_poll(timeout, map)
+
 if __name__ == "__main__":
     # main_func()
     import cProfile
     import pstats
+    asyncore.poll = partial(poll_wrapper, asyncore.poll, ProfileContext())
     cProfile.run("main_func(timeout=10)", "dragonkeeper.profile")
     p = pstats.Stats("dragonkeeper.profile")
     print "cumulative:\n"
