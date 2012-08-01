@@ -3,6 +3,7 @@
 import asyncore
 import hashlib
 import base64
+import struct
 from array import array
 from common import CRLF, BUFFERSIZE
 
@@ -111,22 +112,17 @@ class WebSocket13(asyncore.dispatcher):
         self._handle_read = reader
         self._handle_read()
 
-    def _pack(self, *values):
-        self._outbuffer += array("B", (value >> (byte_count - 1 - i) * 8 & 0xff
-                                       for value, byte_count in values
-                                       for i in range(byte_count))).tostring()
-
     def send_message(self, message):
         # only support for text so far
         msg_len = len(message)
-        fin_opcode = 0x81
+        header = ""
         if msg_len > 0xffff:
-            self._pack((fin_opcode, BYTE), (127, BYTE), (msg_len, INT64))
+            header = struct.pack("!BBQ", 0x81, 127, msg_len)
         elif msg_len > 125:
-            self._pack((fin_opcode, BYTE), (126, BYTE), (msg_len, INT16))
+            header = struct.pack("!BBH", 0x81, 126, msg_len)
         else:
-            self._pack((fin_opcode, BYTE), (msg_len, BYTE))
-        self._outbuffer += message
+            header = struct.pack("!BB", 0x81, msg_len)
+        self._outbuffer += header + message
 
     def handle_message(self, message):
         # implement in a subclass
