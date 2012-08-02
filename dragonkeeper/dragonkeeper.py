@@ -179,13 +179,13 @@ def poll_wrapper(asyncore_poll, ctx, timeout=0.0, map=None):
     asyncore_poll(timeout, map)
 
 if __name__ == "__main__":
-    # main_func()
-    import cProfile
-    import pstats
-    asyncore.poll = partial(poll_wrapper, asyncore.poll, ProfileContext())
-    cProfile.run("main_func(timeout=0.01)", "dragonkeeper.profile")
-    p = pstats.Stats("dragonkeeper.profile")
-    print "cumulative:\n"
-    p.sort_stats("cumulative").print_stats(30)
-    print "\ntime:\n"
-    p.sort_stats("time").print_stats(30)
+    # import cProfile
+    # import pstats
+    # asyncore.poll = partial(poll_wrapper, asyncore.poll, ProfileContext())
+    main_func()
+    # cProfile.run("main_func(timeout=0.01)", "dragonkeeper.profile")
+    # p = pstats.Stats("dragonkeeper.profile")
+    # print "cumulative:\n"
+    # p.sort_stats("cumulative").print_stats(30)
+    # print "\ntime:\n"
+    # p.sort_stats("time").print_stats(30)

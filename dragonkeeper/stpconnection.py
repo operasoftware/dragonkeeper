@@ -21,28 +21,6 @@ def encode_varuint(value):
         out += chr(part)
     return out
 
-
-def decode_varuint(buf):
-    if len(buf) == 0:
-        return None, buf
-    shift = 7
-    value = ord(buf[0])
-    if value & 0x80 != 0x80:
-        return value, buf[1:]
-    value &= 0x7f
-    for i, c in enumerate(buf[1:10]):
-        c = ord(c)
-        if c & 0x80:
-            value |= ((c & 0x7f) << shift)
-        else:
-            value |= (c << shift)
-            return value, buf[i+1+1:]
-        shift += 7
-    if shift > 63:
-        return False, buf
-    return None, buf
-
-
 class ScopeConnection(asyncore.dispatcher):
     """To handle the socket connection to scope."""
     STP1_PB_STP1 = "STP\x01"
@@ -66,6 +44,7 @@ class ScopeConnection(asyncore.dispatcher):
         # STP 0 meassages
         self.in_buffer = u""
         self.out_buffer = ""
+        self.buf_cursor = 0
         self.handle_read = self.handle_read_STP_0
         self.check_input = self.read_int_STP_0
         self.msg_length = 0
@@ -274,8 +253,9 @@ class ScopeConnection(asyncore.dispatcher):
             scope.set_STP_version('stp-1')
             scope.set_service_list(self._service_list)
             self._service_list = None
+            self.buf_cursor = 4
             self.handle_read = self.handle_read_STP_1
-            self.check_input = self.read_stp1_token
+            self.check_input = self.read_varint
             self.handle_stp1_msg = self.handle_stp1_msg_default
             if self.in_buffer:
                 self.check_input()
@@ -319,32 +299,27 @@ class ScopeConnection(asyncore.dispatcher):
         else:
             print "conection to host failed in scope.handle_connect_callback"
 
-    def read_stp1_token(self):
-        """read the STP\x01 message start token"""
-        if self.in_buffer.startswith(self.STP1_PB_STP1):
-            self.in_buffer = self.in_buffer[4:]
-            self.check_input = self.read_varint
-            if self.in_buffer:
-                self.check_input()
-
     def read_varint(self):
         """read STP 1 message length as varint"""
-        varint, buffer = decode_varuint(self.in_buffer)
+        varint = self.decode_varuint()
         if not varint == None:
             self.varint = varint
-            self.in_buffer = buffer
             self.check_input = self.read_binary
-            if self.in_buffer:
+            if self.buf_cursor < len(self.in_buffer):
                 self.check_input()
 
     def read_binary(self):
         """read binary length of STP 1 message"""
-        if len(self.in_buffer) >= self.varint:
-            stp1_msg = self.in_buffer[0:self.varint]
-            self.in_buffer = self.in_buffer[self.varint:]
+        pos = self.buf_cursor + self.varint
+        if len(self.in_buffer) >= pos:
+            self.parse_STP_1_msg(pos)
             self.varint = 0
-            self.check_input = self.read_stp1_token
-            self.parse_STP_1_msg(stp1_msg)
+            if len(self.in_buffer) > BUFFERSIZE:
+                self.in_buffer = self.in_buffer[pos:]
+                self.buf_cursor = 4
+            else:
+                self.buf_cursor = pos + 4
+            self.check_input = self.read_varint
             if self.in_buffer:
                 self.check_input()
 
@@ -353,7 +328,7 @@ class ScopeConnection(asyncore.dispatcher):
         self.in_buffer += self.recv(BUFFERSIZE)
         self.check_input()
 
-    def parse_STP_1_msg(self, STP_1_msg):
+    def parse_STP_1_msg(self, end_pos):
         """parse a STP 1 message
         msg_type: 1 = command, 2 = response, 3 = event, 4 = error
         message TransportMessage
@@ -366,19 +341,13 @@ class ScopeConnection(asyncore.dispatcher):
             required binary payload = 8;
         }
         """
-        msg_type, STP_1_msg = decode_varuint(STP_1_msg)
+        msg_type = self.decode_varuint()
         if msg_type == None:
             raise Exception("Message type of STP 1 message cannot be parsed")
         else:
-            msg = {
-                0: msg_type,
-                4: 0,
-                5: 0,
-                8: '',
-            }
-            while STP_1_msg:
-                key, value, STP_1_msg = self.read_STP_1_msg_part(STP_1_msg)
-                msg[key] = value
+            msg = {0: msg_type, 4: 0, 5: 0, 8: ""}
+            while self.buf_cursor < end_pos:
+                self.read_STP_1_msg_part(msg)
         self.handle_stp1_msg(msg)
 
     def handle_stp1_msg_default(self, msg):
@@ -388,20 +357,37 @@ class ScopeConnection(asyncore.dispatcher):
             scope_messages.append(msg)
 
     def read_STP_1_msg_part(self, msg):
-        varint, msg = decode_varuint(msg)
+        varint = self.decode_varuint()
         if not varint == None:
             tag, type = varint >> 3, varint & 7
             if type == 2:
-                length, msg = decode_varuint(msg)
-                value = msg[0:length]
-                return tag, value, msg[length:]
+                length = self.decode_varuint()
+                msg[tag] = self.in_buffer[self.buf_cursor:self.buf_cursor + length]
+                self.buf_cursor += length
             elif type == 0:
-                value, msg = decode_varuint(msg)
-                return tag, value, msg
+                value = self.decode_varuint()
+                msg[tag] = value
             else:
                 raise Exception("Not valid type in STP 1 message")
         else:
             raise Exception("Cannot read STP 1 message part")
+
+    def decode_varuint(self):
+        value = 0
+        buf_len = len(self.in_buffer)
+        pos = self.buf_cursor
+        for i in range(0, 70, 7):
+            if pos >= buf_len:
+                return None
+            c = ord(self.in_buffer[pos])
+            pos += 1
+            if c & 0x80:
+                value += c - 128 << i
+            else:
+                value += c << i
+                self.buf_cursor = pos
+                return value
+        return None
 
     # ============================================================
     # Implementations of the asyncore.dispatcher class methods
