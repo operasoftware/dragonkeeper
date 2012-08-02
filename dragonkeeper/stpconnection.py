@@ -376,7 +376,7 @@ class ScopeConnection(asyncore.dispatcher):
         value = 0
         buf_len = len(self.in_buffer)
         pos = self.buf_cursor
-        for i in range(0, 70, 7):
+        for i in [0, 7, 14, 21, 28, 35, 42, 49, 56, 63]:
             if pos >= buf_len:
                 return None
             c = ord(self.in_buffer[pos])
