@@ -105,15 +105,6 @@ class ScopeConnection(asyncore.dispatcher):
     def read_msg_STP_0(self):
         """read length STP 0 message"""
         if len(self.in_buffer) >= self.msg_length:
-            """
-            t = int(1000*time())
-            if t - self._last_time > 1000:
-                print self._msg_count
-                self._msg_count = 0
-                self._last_time = t
-            else:
-                self._msg_count += 1
-            """
             command, msg = self.in_buffer[0:self.msg_length].split(BLANK, 1)
             self.in_buffer = self.in_buffer[self.msg_length:]
             self.msg_length = 0
@@ -255,10 +246,8 @@ class ScopeConnection(asyncore.dispatcher):
             self._service_list = None
             self.buf_cursor = 4
             self.handle_read = self.handle_read_STP_1
-            self.check_input = self.read_varint
             self.handle_stp1_msg = self.handle_stp1_msg_default
-            if self.in_buffer:
-                self.check_input()
+            if self.in_buffer: self.handle_read()
 
     def set_msg_handler(self, handler):
         self.handle_stp1_msg = handler
@@ -299,34 +288,26 @@ class ScopeConnection(asyncore.dispatcher):
         else:
             print "conection to host failed in scope.handle_connect_callback"
 
-    def read_varint(self):
-        """read STP 1 message length as varint"""
-        varint = self.decode_varuint()
-        if not varint == None:
-            self.varint = varint
-            self.check_input = self.read_binary
-            if self.buf_cursor < len(self.in_buffer):
-                self.check_input()
-
-    def read_binary(self):
-        """read binary length of STP 1 message"""
-        pos = self.buf_cursor + self.varint
-        if len(self.in_buffer) >= pos:
-            self.parse_STP_1_msg(pos)
-            self.varint = 0
-            if len(self.in_buffer) > BUFFERSIZE:
-                self.in_buffer = self.in_buffer[pos:]
-                self.buf_cursor = 4
-            else:
-                self.buf_cursor = pos + 4
-            self.check_input = self.read_varint
-            if self.in_buffer:
-                self.check_input()
-
     def handle_read_STP_1(self):
-        """general read event handler for STP 1"""
+        # while True:
+        #     try: self.in_buffer += self.recv(BUFFERSIZE)
+        #     except: break
         self.in_buffer += self.recv(BUFFERSIZE)
-        self.check_input()
+        while True:
+            if not self.varint:
+                varint = self.decode_varuint()
+                if varint == None: break
+                else: self.varint = varint
+            else:
+                pos = self.buf_cursor + self.varint
+                if len(self.in_buffer) >= pos:
+                    self.parse_STP_1_msg(pos)
+                    self.varint = 0
+                    if len(self.in_buffer) > BUFFERSIZE:
+                        self.in_buffer = self.in_buffer[pos:]
+                        self.buf_cursor = 4
+                    else: self.buf_cursor = pos + 4
+                else: break
 
     def parse_STP_1_msg(self, end_pos):
         """parse a STP 1 message
@@ -362,27 +343,24 @@ class ScopeConnection(asyncore.dispatcher):
             tag, type = varint >> 3, varint & 7
             if type == 2:
                 length = self.decode_varuint()
-                msg[tag] = self.in_buffer[self.buf_cursor:self.buf_cursor + length]
+                pos = self.buf_cursor
+                msg[tag] = self.in_buffer[pos:pos + length]
                 self.buf_cursor += length
             elif type == 0:
                 value = self.decode_varuint()
                 msg[tag] = value
-            else:
-                raise Exception("Not valid type in STP 1 message")
-        else:
-            raise Exception("Cannot read STP 1 message part")
+            else: raise Exception("Not valid type in STP 1 message")
+        else: raise Exception("Cannot read STP 1 message part")
 
     def decode_varuint(self):
         value = 0
         buf_len = len(self.in_buffer)
         pos = self.buf_cursor
-        for i in range(0, 70, 7):
-            if pos >= buf_len:
-                return None
+        for i in [0, 7, 14, 21, 28, 35, 42, 49, 56, 63]:
+            if pos >= buf_len: return None
             c = ord(self.in_buffer[pos])
             pos += 1
-            if c & 0x80:
-                value += c - 128 << i
+            if c & 0x80: value += c - 128 << i
             else:
                 value += c << i
                 self.buf_cursor = pos

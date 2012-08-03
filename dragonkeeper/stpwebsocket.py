@@ -11,7 +11,7 @@ class STPWebSocket(websocket13.WebSocket13):
         self.debug_format_payload = context.format_payload
         self._stp_connection = stp_connection
         self._stp_connection.set_msg_handler(self.handle_scope_message)
-        
+
     """
     stp-1 message format
     message type: 1 = command, 2 = response, 3 = event, 4 = error
@@ -25,7 +25,7 @@ class STPWebSocket(websocket13.WebSocket13):
         required binary payload = 8;
     }
     """
-    
+
     # messages sent from scope
     def handle_scope_message(self, msg):
         message = '["%s",%s,%s,%s,%s]' % (
@@ -36,13 +36,13 @@ class STPWebSocket(websocket13.WebSocket13):
             msg[8], # payload
         )
         if self.debug:
-            pretty_print("send to client:", 
-                          msg, 
-                          self.debug_format, 
+            pretty_print("send to client:",
+                          msg,
+                          self.debug_format,
                           self.debug_format_payload)
         self.send_message(message)
 
-    # messages sent from the client    
+    # messages sent from the client
     def handle_message(self, message):
         # format: "['" SERVICE "'," COMMAND_ID "," STATUS "," TAG "," PAYLOAD "]"
         message = message[1:-1]

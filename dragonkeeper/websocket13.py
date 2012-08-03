@@ -123,6 +123,7 @@ class WebSocket13(asyncore.dispatcher):
         else:
             header = struct.pack("!BB", 0x81, msg_len)
         self._outbuffer += header + message
+        self.handle_write()
 
     def handle_message(self, message):
         # implement in a subclass
@@ -142,7 +143,7 @@ class WebSocket13(asyncore.dispatcher):
 
     def handle_write(self):
         sent = self.send(self._outbuffer)
-        self._outbuffer = self._outbuffer[sent:]
+        if sent: self._outbuffer = self._outbuffer[sent:]
 
     def handle_close(self):
         self.close()
