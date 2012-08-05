@@ -7,7 +7,6 @@ from common import BLANK, BUFFERSIZE
 from httpscopeinterface import connections_waiting, scope_messages, scope
 from utils import pretty_print_XML, pretty_print
 
-
 def encode_varuint(value):
     if value == 0:
         return "\0"
@@ -21,16 +20,34 @@ def encode_varuint(value):
         out += chr(part)
     return out
 
+"""
+msg_type: 1 = command, 2 = response, 3 = event, 4 = error
+message TransportMessage
+{
+    required string service = 1;
+    required uint32 commandID = 2;
+    required uint32 format = 3;
+    optional uint32 status = 4;
+    optional uint32 tag = 5;
+    required binary payload = 8;
+}
+"""
+TYPE = 0
+SERVICE = 1
+COMMAND = 2
+FORMAT = 3
+STATUS = 4
+TAG = 5
+PAYLOAD = 8
+STP1_COMMAND = "".join([encode_varuint(1),
+                        encode_varuint(SERVICE << 3 | 2), "%s", "%s",
+                        encode_varuint(COMMAND << 3 | 0), "%s",
+                        encode_varuint(FORMAT << 3 | 0), "%s",
+                        encode_varuint(TAG << 3 | 0), "%s",
+                        encode_varuint(PAYLOAD << 3 | 2), "%s", "%s"])
+STP1_MSG = "STP\x01%s%s"
+
 class ScopeConnection(asyncore.dispatcher):
-    """To handle the socket connection to scope."""
-    STP1_PB_STP1 = "STP\x01"
-    STP1_PB_TYPE_COMMAND = encode_varuint(1)
-    STP1_PB_SERVICE = encode_varuint(1 << 3 | 2)
-    STP1_PB_COMMID = encode_varuint(2 << 3 | 0)
-    STP1_PB_FORMAT = encode_varuint(3 << 3 | 0)
-    STP1_PB_STATUS = encode_varuint(4 << 3 | 0)
-    STP1_PB_TAG = encode_varuint(5 << 3 | 0)
-    STP1_PB_PAYLOAD = encode_varuint(8 << 3 | 2)
 
     def __init__(self, conn, addr, context):
         asyncore.dispatcher.__init__(self, sock=conn)
@@ -54,9 +71,9 @@ class ScopeConnection(asyncore.dispatcher):
         self.varint = 0
         self._service_list = None
         scope.set_connection(self)
-
         self._msg_count = 0
         self._last_time = 0
+        self.REQUEST_URI = "stp connection"
 
     # ============================================================
     # STP 0
@@ -78,6 +95,7 @@ class ScopeConnection(asyncore.dispatcher):
     #                                     ------------------>  *quit
     #
     # See also http://dragonfly.opera.com/app/scope-interface for more details.
+
     def send_command_STP_0(self, msg):
         """ to send a message to scope"""
         if self.debug and not self.debug_only_errors:
@@ -197,39 +215,9 @@ class ScopeConnection(asyncore.dispatcher):
     #
     # See also http://dragonfly.opera.com/app/scope-interface for more details.
 
-    def send_command_STP_1(self, msg):
-        """ to send a message to scope
-        message TransportMessage
-        {
-            required string service = 1;
-            required uint32 commandID = 2;
-            required uint32 format = 3;
-            optional uint32 status = 4;
-            optional uint32 tag = 5;
-            required binary payload = 8;
-        }
-        """
-        if self.debug and not self.debug_only_errors:
-            pretty_print("send to host:", msg,
-                            self.debug_format, self.debug_format_payload)
-        stp_1_msg = "".join([
-            self.STP1_PB_TYPE_COMMAND,
-            self.STP1_PB_SERVICE, encode_varuint(len(msg[1])), msg[1],
-            self.STP1_PB_COMMID, encode_varuint(msg[2]),
-            self.STP1_PB_FORMAT, encode_varuint(msg[3]),
-            self.STP1_PB_TAG, encode_varuint(msg[5]),
-            self.STP1_PB_PAYLOAD, encode_varuint(len(msg[8])), msg[8]])
-        self.out_buffer += (
-            self.STP1_PB_STP1 +
-            encode_varuint(len(stp_1_msg)) +
-            stp_1_msg)
-        self.handle_write()
-
     def set_initializer_STP_1(self):
-        """change the read handler to the STP/1 read handler"""
         if self.in_buffer or self.out_buffer:
-            raise Exception("read or write buffer is not empty "
-                                                "in set_initializer_STP_1")
+            raise Exception("read or write buffer is not empty in set_initializer_STP_1")
         self.in_buffer = ""
         self.out_buffer = ""
         self.handle_read = self.read_STP_1_initializer
@@ -237,11 +225,10 @@ class ScopeConnection(asyncore.dispatcher):
         self.msg_length = 0
 
     def read_STP_1_initializer(self):
-        """read the STP/1 tolken"""
         self.in_buffer += self.recv(BUFFERSIZE)
         if self.in_buffer.startswith("STP/1\n"):
             self.in_buffer = self.in_buffer[6:]
-            scope.set_STP_version('stp-1')
+            scope.set_STP_version("stp-1")
             scope.set_service_list(self._service_list)
             self._service_list = None
             self.buf_cursor = 4
@@ -249,49 +236,18 @@ class ScopeConnection(asyncore.dispatcher):
             self.handle_stp1_msg = self.handle_stp1_msg_default
             if self.in_buffer: self.handle_read()
 
-    def set_msg_handler(self, handler):
-        self.handle_stp1_msg = handler
-
-    def clear_msg_handler(self):
-        self.handle_stp1_msg = self.handle_stp1_msg_default
-
-    def connect_client(self, callback):
-        self.connect_client_callback = callback
-        self.handle_stp1_msg = self.handle_connect_client
-        """
-        message TransportMessage
-        {
-            required string service = 1;
-            required uint32 commandID = 2;
-            required uint32 format = 3;
-            optional uint32 status = 4;
-            optional uint32 tag = 5;
-            required binary payload = 8;
-        }
-        """
-        self.send_command_STP_1({
-                0: 1,
-                1: "scope",
-                2: 3,
-                3: 1,
-                5: 0,
-                8: '["json"]'})
-
-    def handle_connect_client(self, msg):
+    def send_command_STP_1(self, msg):
         if self.debug and not self.debug_only_errors:
-            pretty_print("client connected:", msg,
-                            self.debug_format, self.debug_format_payload)
-        if msg[1] == "scope" and msg[2] == 3 and msg[4] == 0:
-            self.handle_stp1_msg = self.handle_stp1_msg_default
-            self.connect_client_callback()
-            self.connect_client_callback = None
-        else:
-            print "conection to host failed in scope.handle_connect_callback"
+            pretty_print("send to host:", msg, self.debug_format, self.debug_format_payload)
+        stp_1_cmd = STP1_COMMAND % (encode_varuint(len(msg[SERVICE])), msg[SERVICE],
+                                    encode_varuint(msg[COMMAND]),
+                                    encode_varuint(msg[FORMAT]),
+                                    encode_varuint(msg[TAG]),
+                                    encode_varuint(len(msg[PAYLOAD])), msg[PAYLOAD])
+        self.out_buffer += STP1_MSG % (encode_varuint(len(stp_1_cmd)), stp_1_cmd)
+        self.handle_write()
 
     def handle_read_STP_1(self):
-        # while True:
-        #     try: self.in_buffer += self.recv(BUFFERSIZE)
-        #     except: break
         self.in_buffer += self.recv(BUFFERSIZE)
         while True:
             if not self.varint:
@@ -310,25 +266,25 @@ class ScopeConnection(asyncore.dispatcher):
                 else: break
 
     def parse_STP_1_msg(self, end_pos):
-        """parse a STP 1 message
-        msg_type: 1 = command, 2 = response, 3 = event, 4 = error
-        message TransportMessage
-        {
-            required string service = 1;
-            required uint32 commandID = 2;
-            required uint32 format = 3;
-            optional uint32 status = 4;
-            optional uint32 tag = 5;
-            required binary payload = 8;
-        }
-        """
         msg_type = self.decode_varuint()
         if msg_type == None:
             raise Exception("Message type of STP 1 message cannot be parsed")
         else:
-            msg = {0: msg_type, 4: 0, 5: 0, 8: ""}
+            msg = {TYPE: msg_type, STATUS: 0, TAG: 0, PAYLOAD: ""}
             while self.buf_cursor < end_pos:
-                self.read_STP_1_msg_part(msg)
+                varint = self.decode_varuint()
+                if not varint == None:
+                    tag, type = varint >> 3, varint & 7
+                    if type == 2:
+                        length = self.decode_varuint()
+                        pos = self.buf_cursor
+                        msg[tag] = self.in_buffer[pos:pos + length]
+                        self.buf_cursor += length
+                    elif type == 0:
+                        value = self.decode_varuint()
+                        msg[tag] = value
+                    else: raise Exception("Not valid type in STP 1 message")
+                else: raise Exception("Cannot read STP 1 message part")
         self.handle_stp1_msg(msg)
 
     def handle_stp1_msg_default(self, msg):
@@ -337,20 +293,31 @@ class ScopeConnection(asyncore.dispatcher):
         else:
             scope_messages.append(msg)
 
-    def read_STP_1_msg_part(self, msg):
-        varint = self.decode_varuint()
-        if not varint == None:
-            tag, type = varint >> 3, varint & 7
-            if type == 2:
-                length = self.decode_varuint()
-                pos = self.buf_cursor
-                msg[tag] = self.in_buffer[pos:pos + length]
-                self.buf_cursor += length
-            elif type == 0:
-                value = self.decode_varuint()
-                msg[tag] = value
-            else: raise Exception("Not valid type in STP 1 message")
-        else: raise Exception("Cannot read STP 1 message part")
+    def set_msg_handler(self, handler):
+        self.handle_stp1_msg = handler
+
+    def clear_msg_handler(self):
+        self.handle_stp1_msg = self.handle_stp1_msg_default
+
+    def connect_client(self, callback):
+        self.connect_client_callback = callback
+        self.handle_stp1_msg = self.handle_connect_client
+        self.send_command_STP_1({TYPE: 1,
+                                 SERVICE: "scope",
+                                 COMMAND: 3,
+                                 FORMAT: 1,
+                                 TAG: 0,
+                                 PAYLOAD: '["json"]'})
+
+    def handle_connect_client(self, msg):
+        if self.debug and not self.debug_only_errors:
+            pretty_print("client connected:", msg, self.debug_format, self.debug_format_payload)
+        if msg[SERVICE] == "scope" and msg[COMMAND] == 3 and msg[STATUS] == 0:
+            self.handle_stp1_msg = self.handle_stp1_msg_default
+            self.connect_client_callback()
+            self.connect_client_callback = None
+        else:
+            print "conection to host failed in scope.handle_connect_callback"
 
     def decode_varuint(self):
         value = 0
@@ -370,6 +337,7 @@ class ScopeConnection(asyncore.dispatcher):
     # ============================================================
     # Implementations of the asyncore.dispatcher class methods
     # ============================================================
+
     def handle_read(self):
         pass
 

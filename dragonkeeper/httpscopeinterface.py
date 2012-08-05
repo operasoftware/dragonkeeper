@@ -76,12 +76,12 @@ class Scope(Singleton):
 
     def empty_call(self, msg):
         pass
-        
+
     def set_connection(self, connection):
         """ to register the scope connection"""
         self._connection = connection
         self.send_command = connection.send_command_STP_0
-        
+
     def get_scope_connection(self):
         return self._connection
 
@@ -298,6 +298,7 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         self.scope_message = self.get_message
         self.send_command = self.post_command
         self.is_timing = context.is_timing
+        self.REQUEST_URI = "http scope interface"
 
     # ============================================================
     # GET commands ( first part of the path )

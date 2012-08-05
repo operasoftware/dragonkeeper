@@ -9,6 +9,7 @@ from httpscopeinterface import HTTPScopeInterface
 from stpconnection import ScopeConnection
 from simpleserver import SimpleServer, asyncore
 from upnpsimpledevice import SimpleUPnPDevice
+from common import ProfileContext
 
 if sys.platform == "win32":
     import msvcrt
@@ -151,34 +152,20 @@ def main_func(timeout=0.1):
             obj.close()
         sys.exit()
 
-class ProfileContext(object):
-    def __init__(self):
-        self.time = time.time()
-        self.call_count = 0
-        self.calls_per_sec = 0
-        self.socket_count = 0
-
-
 def poll_wrapper(asyncore_poll, ctx, timeout=0.0, map=None):
-    ctx.call_count += 1
     s_count = len(map)
     if not s_count == ctx.socket_count:
         print "sockets:", s_count
         ctx.socket_count = s_count
-    t = time.time()
-    if t - ctx.time > 1:
-        calls_per_sec = ctx.call_count * (1 / (t - ctx.time))
-        ctx.call_count = 0
-        ctx.time = t
-        if calls_per_sec < ctx.calls_per_sec * .95 or calls_per_sec > ctx.calls_per_sec * 1.05:
-            ctx.calls_per_sec = calls_per_sec
-            print "polls per second:", int(calls_per_sec)
+        for s in map:
+            print map[s].REQUEST_URI
+    ctx.count()
     asyncore_poll(timeout, map)
 
 if __name__ == "__main__":
     # import cProfile
     # import pstats
-    asyncore.poll = partial(poll_wrapper, asyncore.poll, ProfileContext())
+    asyncore.poll = partial(poll_wrapper, asyncore.poll, ProfileContext("polls per second:"))
     main_func()
     # cProfile.run("main_func(timeout=0.01)", "dragonkeeper.profile")
     # p = pstats.Stats("dragonkeeper.profile")

@@ -84,6 +84,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         self.search_resp = SEARCH_RESPONSE % (self.ip, self.http_port, self.uuid)
         self.sniff = sniff
         self.is_alive = False
+        self.REQUEST_URI = "upnp device: %s" % ip
 
     def notify_alive(self):
         self.is_alive = True
@@ -100,7 +101,7 @@ class SimpleUPnPDevice(asyncore.dispatcher):
 
     def queue_msg(self, delay, msg, addr):
         self.msg_queue.append((delay, msg, addr))
-        
+
     def process_msg_queue(self):
         cur = 0
         t = time.time() * 1000
