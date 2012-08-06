@@ -31,7 +31,7 @@ def _get_IP():
 
 def _parse_args():
     parser = argparse.ArgumentParser(description="""
-                                     Developper tool for Opera Dragonfly. 
+                                     Developper tool for Opera Dragonfly.
                                      Translates STP to HTTP.
                                      Exit: Control-C""")
     parser.add_argument("-d", "--debug",
@@ -84,20 +84,20 @@ def _parse_args():
     parser.add_argument("--print-command-map-services",
                         dest = "print_message_map_services",
                         default="",
-                        help="""a comma separated list of services to print 
+                        help="""a comma separated list of services to print
                                 the command map (default: %(default)s))""")
     parser.add_argument("--message-filter",
                         dest="message_filter",
                         default="",
                         help="""Filter the printing of the messages.
                                 The argument is the filter or a path to a file with the filter.
-                                If the filter is set, only messages which are 
-                                listed in the filter will be printed. 
-                                The filter uses JSON notation like: 
-                                {"<service name>": {"<message type>": [<message>*]}}", 
-                                with message type one of "command", "response", "event." 
-                                 '*' placeholder are accepted in <message>, 
-                                e.g. a filter to log all threads may look like: 
+                                If the filter is set, only messages which are
+                                listed in the filter will be printed.
+                                The filter uses JSON notation like:
+                                {"<service name>": {"<message type>": [<message>*]}}",
+                                with message type one of "command", "response", "event."
+                                 '*' placeholder are accepted in <message>,
+                                e.g. a filter to log all threads may look like:
                                  "{'ecmascript-debugger': {'event': ['OnThread*']}}".""")
     parser.add_argument("-v", "--verbose",
                         action="store_true",
@@ -113,6 +113,11 @@ def _parse_args():
                         default="localhost",
                         dest="SERVER_NAME",
                         help="server name (default: %(default)s))")
+    parser.add_argument("--timeout",
+                        type=float,
+                        default=0.1,
+                        dest="poll_timeout",
+                        help="timeout for asyncore.poll (default: %(default)s))")
     parser.set_defaults(ip=_get_IP(), http_get_handlers={})
     return parser.parse_args()
 
@@ -125,7 +130,8 @@ def _run_proxy(args, count=None):
     upnp_device.notify_alive()
     args.http_get_handlers["upnp_description"] = upnp_device.get_description
     args.upnp_device = upnp_device
-    asyncore.loop(timeout = 0.1, count=count)
+    print args.poll_timeout
+    asyncore.loop(timeout=0.001, count=count)
 
 def main_func():
     args = _parse_args()
