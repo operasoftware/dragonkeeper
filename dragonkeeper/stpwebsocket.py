@@ -1,6 +1,5 @@
 import websocket13
 from utils import pretty_print
-from common import ProfileContext
 
 """
 stp-1 message format
@@ -23,6 +22,7 @@ FORMAT = 3
 STATUS = 4
 TAG = 5
 PAYLOAD = 8
+STP_MSG = "[\"%s\",%s,%s,%s,%s]"
 
 class STPWebSocket(websocket13.WebSocket13):
 
@@ -34,16 +34,10 @@ class STPWebSocket(websocket13.WebSocket13):
         self.debug_format_payload = context.format_payload
         self._stp_connection = stp_connection
         self._stp_connection.set_msg_handler(self.handle_scope_message)
-        self.profile = ProfileContext("messages per second:")
 
     # messages sent from scope
     def handle_scope_message(self, msg):
-        self.profile.count()
-        message = '["%s",%s,%s,%s,%s]' % (msg[SERVICE],
-                                          msg[COMMAND],
-                                          msg[STATUS],
-                                          msg[TAG],
-                                          msg[PAYLOAD])
+        message = STP_MSG % (msg[SERVICE], msg[COMMAND], msg[STATUS], msg[TAG], msg[PAYLOAD])
         if self.debug:
             pretty_print("send to client:",
                          msg,
@@ -63,3 +57,7 @@ class STPWebSocket(websocket13.WebSocket13):
                                                  FORMAT: 1,
                                                  TAG: int(args[3]),
                                                  PAYLOAD: message[pos:]})
+
+    """
+    TODO handle socket close
+    """

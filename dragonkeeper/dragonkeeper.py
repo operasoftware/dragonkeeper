@@ -5,7 +5,7 @@ import argparse
 import asyncore
 from httpscopeinterface import HTTPScopeInterface
 from stpconnection import ScopeConnection
-from simpleserver import SimpleServer, asyncore
+from simpleserver import SimpleServer
 from upnpsimpledevice import SimpleUPnPDevice
 
 if sys.platform == "win32":

@@ -13,6 +13,10 @@ INT16 = 2
 INT64 = 8
 BYTE = 1
 OPCODE_CLOSE = 8
+MSG_DOUBLE = "%s%%s%%s" % struct.pack("!BB", 0x81, 127)
+MSG_LONG = "%s%%s%%s" % struct.pack("!BB", 0x81, 126)
+MSG_SHORT = "%s%%s%%s" % struct.pack("!B", 0x81)
+
 
 # RESPONSE_UPGRADE_WEB_SOCKET % (key)
 RESPONSE_UPGRADE_WEB_SOCKET = CRLF.join(["HTTP/1.1 101 Switching Protocols",
@@ -115,14 +119,12 @@ class WebSocket13(asyncore.dispatcher):
     def send_message(self, message):
         # only support for text so far
         msg_len = len(message)
-        header = ""
         if msg_len > 0xffff:
-            header = struct.pack("!BBQ", 0x81, 127, msg_len)
+            self._outbuffer += MSG_DOUBLE % (struct.pack("!Q", msg_len), message)
         elif msg_len > 125:
-            header = struct.pack("!BBH", 0x81, 126, msg_len)
+            self._outbuffer += MSG_LONG % (struct.pack("!H", msg_len), message)
         else:
-            header = struct.pack("!BB", 0x81, msg_len)
-        self._outbuffer += header + message
+            self._outbuffer += MSG_SHORT % (struct.pack("!B", msg_len), message)
         self.handle_write()
 
     def handle_message(self, message):
