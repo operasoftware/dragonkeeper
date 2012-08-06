@@ -11,7 +11,6 @@ class SimpleServer(asyncore.dispatcher):
         self.listen(5)
         self.connection_class = connection_class
         self.context = context
-        self.REQUEST_URI = "server: %s:%s" % (host, port)
 
     def handle_accept(self):
         newSocket, address = self.accept()

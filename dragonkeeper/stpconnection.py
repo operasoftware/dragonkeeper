@@ -73,7 +73,6 @@ class ScopeConnection(asyncore.dispatcher):
         scope.set_connection(self)
         self._msg_count = 0
         self._last_time = 0
-        self.REQUEST_URI = "stp connection"
 
     # ============================================================
     # STP 0

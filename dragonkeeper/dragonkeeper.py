@@ -3,13 +3,10 @@ import os
 import socket
 import argparse
 import asyncore
-import time
-from functools import partial
 from httpscopeinterface import HTTPScopeInterface
 from stpconnection import ScopeConnection
 from simpleserver import SimpleServer, asyncore
 from upnpsimpledevice import SimpleUPnPDevice
-from common import ProfileContext
 
 if sys.platform == "win32":
     import msvcrt
@@ -157,24 +154,5 @@ def main_func():
             obj.close()
         sys.exit()
 
-def poll_wrapper(asyncore_poll, ctx, timeout=0.0, map=None):
-    s_count = len(map)
-    if not s_count == ctx.socket_count:
-        print "sockets:", s_count
-        ctx.socket_count = s_count
-        for s in map:
-            print map[s].REQUEST_URI
-    ctx.count()
-    asyncore_poll(timeout, map)
-
 if __name__ == "__main__":
-    # import cProfile
-    # import pstats
-    asyncore.poll = partial(poll_wrapper, asyncore.poll, ProfileContext("polls per second:"))
     main_func()
-    # cProfile.run("main_func(timeout=0.01)", "dragonkeeper.profile")
-    # p = pstats.Stats("dragonkeeper.profile")
-    # print "cumulative:\n"
-    # p.sort_stats("cumulative").print_stats(30)
-    # print "\ntime:\n"
-    # p.sort_stats("time").print_stats(30)

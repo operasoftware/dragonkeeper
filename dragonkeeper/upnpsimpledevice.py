@@ -84,7 +84,6 @@ class SimpleUPnPDevice(asyncore.dispatcher):
         self.search_resp = SEARCH_RESPONSE % (self.ip, self.http_port, self.uuid)
         self.sniff = sniff
         self.is_alive = False
-        self.REQUEST_URI = "upnp device: %s" % ip
 
     def notify_alive(self):
         self.is_alive = True

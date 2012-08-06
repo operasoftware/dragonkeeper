@@ -161,7 +161,6 @@ class TestWebSocket13HighLoad(WebSocket13):
 
     def __init__(self, socket, headers, buffer, path):
         WebSocket13.__init__(self, socket, headers, buffer, path)
-        self.REQUEST_URI = "web socket: " + path
 
     def writable(self):
         self.send_message('["ecmascript-debugger",17,0,0,[14,1118563,0,"timeout"]]')

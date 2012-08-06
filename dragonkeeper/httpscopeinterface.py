@@ -298,7 +298,6 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
         self.scope_message = self.get_message
         self.send_command = self.post_command
         self.is_timing = context.is_timing
-        self.REQUEST_URI = "http scope interface"
 
     # ============================================================
     # GET commands ( first part of the path )

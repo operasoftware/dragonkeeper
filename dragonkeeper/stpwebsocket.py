@@ -34,7 +34,6 @@ class STPWebSocket(websocket13.WebSocket13):
         self.debug_format_payload = context.format_payload
         self._stp_connection = stp_connection
         self._stp_connection.set_msg_handler(self.handle_scope_message)
-        self.REQUEST_URI = "web-socket: " + path
         self.profile = ProfileContext("messages per second:")
 
     # messages sent from scope

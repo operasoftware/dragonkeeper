@@ -212,24 +212,3 @@ class Singleton(object):
         if '_inst' not in vars(cls):
             cls._inst = object.__new__(cls, *args, **kwargs)
         return cls._inst
-
-class ProfileContext(object):
-    def __init__(self, log_msg="", tolerance=.05):
-        self.time = time()
-        self.call_count = 0
-        self.calls_per_sec = 0
-        self.socket_count = 0
-        self.log_msg = log_msg
-        self.tolerance = tolerance
-
-    def count(self):
-        self.call_count += 1
-        now = time()
-        if now - self.time > 1:
-            calls_per_sec = self.call_count * (1 / (now - self.time))
-            self.call_count = 0
-            self.time = now
-            if calls_per_sec < self.calls_per_sec * (1 - self.tolerance) or \
-               calls_per_sec > self.calls_per_sec * (1 + self.tolerance):
-                self.calls_per_sec = calls_per_sec
-                print self.log_msg, int(calls_per_sec)
