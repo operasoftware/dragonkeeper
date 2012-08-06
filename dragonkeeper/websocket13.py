@@ -155,3 +155,19 @@ class TestWebSocket13(WebSocket13):
 
     def handle_message(self, message):
         self.send_message("message received: %s" % message)
+        print "\r", message,
+
+class TestWebSocket13HighLoad(WebSocket13):
+
+    def __init__(self, socket, headers, buffer, path):
+        WebSocket13.__init__(self, socket, headers, buffer, path)
+        self.REQUEST_URI = "web socket: " + path
+
+    def writable(self):
+        self.send_message('["ecmascript-debugger",17,0,0,[14,1118563,0,"timeout"]]')
+        self.send_message('["ecmascript-debugger",18,0,0,[14,1118563,"completed"]]')
+        return bool(self._outbuffer)
+
+    def handle_close(self):
+        self.del_channel()
+        self.close()

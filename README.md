@@ -35,33 +35,35 @@ Exit: Control-C
 
 Basic workflow when using Dragonkeeper is as follows:
 
-- Get a source distribution of Opera Dragonfly from <https://github.com/operasoftware/dragonfly>
+- Get the Opera Dragonfly source from <https://github.com/operasoftware/dragonfly>
 
-- Open a terminal, go to Dragonfly's directory and run dragonkeeper:
+- Open a terminal, go to the `src` directory in Dragonfly's directory and run dragonkeeper:
 
+        % cd path/to/dragonfly/src
         % dragonkeeper
 
   This should result in:
 
         server on: http://localhost:8002/
-
-- Open that URL in Opera. You should see a list of files. Navigate to `src/client-en.xml`. There
+        
+- Open <http://localhost:8002/client-en.xml> in Opera. There
   should be a message saying "Waiting for host connection on port 0".
 
 - Open another instance of Opera from within your terminal using
 
-        /path/to/opera -pd <profile-dir>
+        % opera -pd <profile-dir>
 
   `<profile-dir>` can simply be a temporary directory, e.g. `/tmp`.
 
   Alternatively, use another installation of Opera (as long as they have different profile directories).
 
-- In that browser's address bar, go to [opera:debug](opera:debug), select port 7001 and click 'Connect'.
+- In the new Opera intance, go to [opera:debug](opera:debug), select port 7001 and click 'Connect'.
 
-- In the first instance, Opera Dragonfly should now load. If not, reload it manually.
+- Opera Dragonfly should now load in the first Opera instance. If not, reload it manually. You should
+  also see some output from Dragonkeeper in the terminal.
 
-The Dragonfly instance running in the normal browser window can now be debugged with "normal" Opera
-Dragonfly instance.
+The Dragonfly instance running in the normal browser window can now be itself be debugged by Opera
+Dragonfly.
 
 ## Advanced
 

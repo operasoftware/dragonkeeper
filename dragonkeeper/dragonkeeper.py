@@ -117,10 +117,15 @@ def _parse_args():
                         default="localhost",
                         dest="SERVER_NAME",
                         help="server name (default: %(default)s))")
+    parser.add_argument("--timeout",
+                        type=float,
+                        default=0.1,
+                        dest="poll_timeout",
+                        help="timeout for asyncore.poll (default: %(default)s))")
     parser.set_defaults(ip=_get_IP(), http_get_handlers={})
     return parser.parse_args()
 
-def _run_proxy(args, timeout=0.1, count=None):
+def _run_proxy(args, count=None):
     server = SimpleServer(args.host, args.server_port, HTTPScopeInterface, args)
     args.SERVER_ADDR, args.SERVER_PORT = server.socket.getsockname()
     SimpleServer(args.host, args.stp_port, ScopeConnection, args)
@@ -129,9 +134,9 @@ def _run_proxy(args, timeout=0.1, count=None):
     upnp_device.notify_alive()
     args.http_get_handlers["upnp_description"] = upnp_device.get_description
     args.upnp_device = upnp_device
-    asyncore.loop(timeout=timeout, count=count)
+    asyncore.loop(timeout=args.poll_timeout, count=count)
 
-def main_func(timeout=0.1):
+def main_func():
     args = _parse_args()
     if not args.ip:
         print "failed to get the IP of the machine"
@@ -144,7 +149,7 @@ def main_func(timeout=0.1):
         MessageMap.set_filter(args.message_filter)
     os.chdir(args.root)
     try:
-        _run_proxy(args, timeout=timeout)
+        _run_proxy(args)
     except KeyboardInterrupt:
         args.upnp_device.notify_byby()
         asyncore.loop(timeout = 0.1, count=6)
