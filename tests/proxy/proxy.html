@@ -1,0 +1,20 @@
+<!doctype html>
+<title>test proxy</title>
+<script>
+document.onsubmit = function(event)
+{
+  var url = document.querySelector("input").value;
+  var xhr = new XMLHttpRequest();
+  xhr.onload = function()
+  {
+    document.querySelector("pre").textContent = this.responseText;
+  };
+  xhr.open("POST", "http://" + location.host + "/proxy");
+  xhr.send(url);
+  event.stopPropagation();
+  event.preventDefault();
+}
+</script>
+<h2>test proxy</h2>
+<form><input><input type=submit></form>
+<pre></pre>

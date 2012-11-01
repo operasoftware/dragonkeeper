@@ -320,6 +320,27 @@ class HTTPConnection(asyncore.dispatcher):
                 len(content),
                 content)
             self.timeout = 0
+
+    def proxy(self):
+        import urllib
+        try:
+            response = urllib.urlopen(self.raw_post_data)
+            content = response.read()
+            self.out_buffer += RESPONSE_OK_CONTENT % (
+                get_timestamp(),
+                '',
+                "text/html",
+                len(content),
+                content)
+        except:
+            content = "The server cannot handle: %s" % method
+            self.out_buffer += NOT_FOUND % (
+                get_timestamp(),
+                len(content),
+                content)
+            self.timeout = 0
+        self.timeout = 0
+
     # ============================================================
     #
     # ============================================================
