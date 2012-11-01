@@ -149,7 +149,7 @@ def main_func():
         _run_proxy(args)
     except KeyboardInterrupt:
         args.upnp_device.notify_byby()
-        asyncore.loop(timeout = 0.1, count=6)
+        asyncore.loop(timeout=args.poll_timeout, count=6)
         for fd, obj in asyncore.socket_map.items():
             obj.close()
         sys.exit()
