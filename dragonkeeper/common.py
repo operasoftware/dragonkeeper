@@ -149,17 +149,18 @@ DIR_VIEW = \
     display: inline-block;
     background-repeat: no-repeat;
     vertical-align: middle;
-    width: -o-skin;
-    height: -o-skin;
+    width: 16px;
+    height: 16px;
     margin-right: 3px;
+    background-size: cover
   }
   .directory icon
   {
-    background-image: -o-skin('Folder');
+    background-image: url(/folder.png);
   }
   .file icon
   {
-    background-image: -o-skin('Window Document Icon');
+    background-image: url(/file.png);
   }
 </style>
 </head>

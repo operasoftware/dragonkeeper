@@ -28,7 +28,9 @@ setup(
     author='Christian Krebs, Rune Halvorsen, Jan Borsodi',
     author_email='chrisk@opera.com, runeh@opera.com, jborsodi@opera.com',
     data_files=[('dragonkeeper', ['dragonkeeper/favicon.ico']),
-                ('dragonkeeper', ['dragonkeeper/device-favicon.png'])],
+                ('dragonkeeper', ['dragonkeeper/device-favicon.png',
+                                  'dragonkeeper/folder.png',
+                                  'dragonkeeper/file.png'])],
     description='An HTTP proxy for Opera Dragonfly development',
     long_description=open("README.md").read(),
     **addl_args
