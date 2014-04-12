@@ -1,6 +1,7 @@
 import asyncore
 import sys
 import shlex
+import json
 from time import time
 from os import stat, listdir
 from os.path import isfile, isdir
@@ -339,6 +340,44 @@ class HTTPConnection(asyncore.dispatcher):
                 len(content),
                 content)
             self.timeout = 0
+        self.timeout = 0
+
+    def base64_2png(self):
+        import json
+        import upnpsimpledevice
+        resp_msg = None
+        try:
+            """
+            message format
+            {
+                directory: <relative URL>,
+                data: <base64 string>
+            }
+            """
+            msg = json.loads(self.raw_post_data)
+            file_name = "%s.png" % upnpsimpledevice.get_uuid()
+            sys_path = URI_to_system_path(msg.get("directory"))
+            if not path_exists(sys_path):
+                os.mkdir(sys_path)
+            path = path_join(sys_path, file_name)
+            fh = open(path, "wb")
+            fh.write(msg.get("data").decode('base64'))
+            fh.close()
+            resp_msg = {
+                "status": "OK",
+                "file_name": file_name
+            }
+        except:
+            resp_msg = {
+                "status": "Error"
+            }
+        content = json.dumps(resp_msg)
+        self.out_buffer += RESPONSE_OK_CONTENT % (
+            get_timestamp(),
+            "",
+            "text/plain",
+            len(content),
+            content)
         self.timeout = 0
 
     # ============================================================
