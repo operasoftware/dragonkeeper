@@ -40,6 +40,7 @@ See also http://dragonfly.opera.com/app/scope-interface for more details.
 
 import re
 import httpconnection
+import os
 from time import time
 from common import CRLF, RESPONSE_BASIC, RESPONSE_OK_CONTENT
 from common import NOT_FOUND, BAD_REQUEST, get_timestamp, Singleton
@@ -452,6 +453,21 @@ class HTTPScopeInterface(httpconnection.HTTPConnection):
             data = data.replace("'=\"\"", "")
             data = re.sub(r'<script(?:[^/>]|/[^>])*/>[ \r\n]*', '', data)
             f.write(data.replace("'=\"\"", ""))
+            f.close()
+        self.out_buffer += self.RESPONSE_OK_OK % get_timestamp()
+        self.timeout = 0
+
+    def savefile(self):
+        """save file"""
+        raw_data = self.raw_post_data
+        file_name = self.arguments[0]
+        print file_name
+        if not os.path.exists("screenshots"):
+            os.mkdir("screenshots")
+
+        if raw_data:
+            f = open(os.path.join("screenshots", file_name), 'wb')
+            f.write(raw_data)
             f.close()
         self.out_buffer += self.RESPONSE_OK_OK % get_timestamp()
         self.timeout = 0
